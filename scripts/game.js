@@ -1,8 +1,8 @@
-import { Cd, Ls, Pwd, Clear } from './command.js';
+import { Cd, Ls, Pwd, Clear } from './commands.js';
 import { printPrompt, printToTerminal } from './utils.js';
 
 const terminal = new Terminal({
-    fontSize: 16,
+    fontSize: 17,
     fontFamily: 'Ubuntu Mono, courier-new, courier, monospace'
 });
 terminal.open(document.getElementById('terminal'));
