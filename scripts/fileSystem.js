@@ -1,9 +1,13 @@
-let currentDirectory = '/home/wizard/dungeon';
+let homeDirectory = '/home/wizard';
+let currentDirectory = `${homeDirectory}/dungeon`;
+
 const fileSystem = {
     '/home': { 'wizard': { 'dungeon': { 'file1.txt': '', 'file2.txt': '' } } }
 };
 
+
 export const changeDirectory = (path) => {
+    // TODO: Does not work
     if (path === '..') {
         const parts = currentDirectory.split('/');
         parts.pop();
@@ -33,4 +37,8 @@ export const listDirectory = () => {
 
 export const getWorkingDirectory = () => {
     return currentDirectory;
+};
+
+export const getHomeDirectory = () => {
+    return homeDirectory;
 };
