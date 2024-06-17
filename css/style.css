@@ -1,0 +1,17 @@
+body {
+    font-family: monospace;
+    background-color: #2d2d2d;
+    color: #ffffff;
+    display: flex;
+}
+
+#terminal {
+    width: 40%;
+    background-color: #1e1e1e;
+    overflow-y: auto;
+}
+
+.game-wrapper {
+    width: 60%;
+    height: 100vh;
+}
