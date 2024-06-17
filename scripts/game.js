@@ -1,9 +1,12 @@
 import { Cd, Ls, Pwd, Clear } from './commands.js';
-import { printPrompt, printToTerminal } from './utils.js';
+import { printPrompt, print } from './utils.js';
+import { ascii } from './ascii.js';
+
 
 const terminal = new Terminal({
     fontSize: 17,
-    fontFamily: 'Ubuntu Mono, courier-new, courier, monospace'
+    fontFamily: 'Ubuntu Mono, courier-new, courier, monospace',
+    convertEol: true
 });
 terminal.open(document.getElementById('terminal'));
 
@@ -50,9 +53,9 @@ const processCommand = (input) => {
     if (command) {
         command.execute(args);
     } else {
-        printToTerminal(terminal, `Command not found: ${input}`);
+        print(terminal, `Command not found: ${input}`);
     }
 };
 
-printToTerminal(terminal, 'Welcome to the BASH Dungeon Game!\n');
+print(terminal, ascii.banner, false);
 printPrompt(terminal);
