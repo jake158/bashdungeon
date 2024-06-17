@@ -6,6 +6,7 @@ import { ascii } from './ascii.js';
 const terminal = new Terminal({
     fontSize: 17,
     fontFamily: 'Ubuntu Mono, courier-new, courier, monospace',
+    cursorBlink: true,
     convertEol: true
 });
 terminal.open(document.getElementById('terminal'));
@@ -59,3 +60,4 @@ const processCommand = (input) => {
 
 print(terminal, ascii.banner, false, false);
 printPrompt(terminal);
+terminal.focus();
