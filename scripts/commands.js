@@ -1,5 +1,5 @@
 import { changeDirectory, listDirectory, getWorkingDirectory } from './fileSystem.js';
-import { printToTerminal } from './utils.js';
+import { print } from './utils.js';
 
 class Command {
     constructor(terminal) {
@@ -16,13 +16,13 @@ class Command {
 class Cd extends Command {
     execute(args) {
         if (args.length < 1) {
-            printToTerminal(this.terminal, 'No directory specified');
+            print(this.terminal, 'No directory specified');
             return;
         }
         const path = args[0];
         const error = changeDirectory(path);
         if (error) {
-            printToTerminal(this.terminal, error);
+            print(this.terminal, error);
         }
     }
 }
@@ -30,14 +30,14 @@ class Cd extends Command {
 class Ls extends Command {
     execute(args) {
         const output = listDirectory();
-        printToTerminal(this.terminal, output);
+        print(this.terminal, output);
     }
 }
 
 class Pwd extends Command {
     execute(args) {
         const output = getWorkingDirectory();
-        printToTerminal(this.terminal, output);
+        print(this.terminal, output);
     }
 }
 

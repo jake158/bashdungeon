@@ -15,6 +15,10 @@ export const printPrompt = (terminal) => {
     terminal.write(`\r\n${prompt}`);
 };
 
-export const printToTerminal = (terminal, text) => {
-    terminal.write(`\r\n${text}`);
+export const print = (terminal, text, addNewLine = true) => {
+    if (addNewLine) {
+        terminal.write(`\r\n${text}`);
+    } else {
+        terminal.write(`${text}`);
+    }
 };
