@@ -41,4 +41,10 @@ class Pwd extends Command {
     }
 }
 
-export { Command, Cd, Ls, Pwd };
+class Clear extends Command {
+    execute(args) {
+        this.terminal.reset();
+    }
+}
+
+export { Command, Cd, Ls, Pwd, Clear };

@@ -1,8 +1,13 @@
-import { Cd, Ls, Pwd } from './command.js';
+import { Cd, Ls, Pwd, Clear } from './command.js';
 import { printPrompt, printToTerminal } from './utils.js';
 
 const terminal = new Terminal();
+const fitAddon = new FitAddon.FitAddon();
+terminal.loadAddon(fitAddon);
 terminal.open(document.getElementById('terminal'));
+fitAddon.fit();
+
+window.addEventListener('resize', () => fitAddon.fit());
 
 let commandBuffer = '';
 
@@ -31,7 +36,8 @@ terminal.onData(e => {
 const commandRegistry = {
     'cd': new Cd(terminal),
     'ls': new Ls(terminal),
-    'pwd': new Pwd(terminal)
+    'pwd': new Pwd(terminal),
+    'clear': new Clear(terminal)
 };
 
 const processCommand = (input) => {
@@ -45,5 +51,5 @@ const processCommand = (input) => {
     }
 };
 
-printToTerminal(terminal, 'Welcome to the BASH Dungeon Game!');
+printToTerminal(terminal, 'Welcome to the BASH Dungeon Game!\n');
 printPrompt(terminal);
