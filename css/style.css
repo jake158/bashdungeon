@@ -1,5 +1,4 @@
 body {
-    font-family: monospace;
     background-color: #2d2d2d;
     color: #ffffff;
     display: flex;
@@ -8,7 +7,7 @@ body {
 
 .terminal-wrapper {
     background-color: black;
-    padding: 1px 0px 0px 10px;
+    padding: 0px 0px 0px 10px;
     width: 35%;
 }
 
