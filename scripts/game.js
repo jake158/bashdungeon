@@ -57,5 +57,5 @@ const processCommand = (input) => {
     }
 };
 
-print(terminal, ascii.banner, false);
+print(terminal, ascii.banner, false, false);
 printPrompt(terminal);
