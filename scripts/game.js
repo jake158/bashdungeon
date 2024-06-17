@@ -1,12 +1,15 @@
 import { Cd, Ls, Pwd, Clear } from './command.js';
 import { printPrompt, printToTerminal } from './utils.js';
 
-const terminal = new Terminal();
+const terminal = new Terminal({
+    fontSize: 16,
+    fontFamily: 'Ubuntu Mono, courier-new, courier, monospace'
+});
+terminal.open(document.getElementById('terminal'));
+
 const fitAddon = new FitAddon.FitAddon();
 terminal.loadAddon(fitAddon);
-terminal.open(document.getElementById('terminal'));
 fitAddon.fit();
-
 window.addEventListener('resize', () => fitAddon.fit());
 
 let commandBuffer = '';
