@@ -9,11 +9,14 @@
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="node_modules/@xterm/xterm/css/xterm.css" />
     <script src="node_modules/@xterm/xterm/lib/xterm.js"></script>
+    <script src="node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
     <script type="module" src="scripts/game.js" defer></script>
 </head>
 
 <body>
-    <div id="terminal"></div>
+    <div class="terminal-wrapper">
+        <div id="terminal"></div>
+    </div>
     <div class="game-wrapper"></div>
 </body>
 
