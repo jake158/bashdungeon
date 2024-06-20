@@ -19,20 +19,26 @@ function Game() {
     fitAddon.fit();
     window.addEventListener('resize', () => fitAddon.fit());
 
-    let commandBuffer = '';
     const eventEmitter = EventEmitter();
-    const bashEmulator = BashEmulator(eventEmitter);
+    const bash = BashEmulator(eventEmitter);
+    let commandBuffer = '';
 
+    const clearInput = () => {
+        for (let i = 0; i < commandBuffer.length; i++) {
+            terminal.write('\b \b');
+        }
+    };
 
     terminal.onData(e => {
         switch (e) {
             // Enter
             case '\r':
-                const result = bashEmulator.execute(commandBuffer);
+                const result = bash.execute(commandBuffer);
                 print(terminal, result);
                 commandBuffer = '';
                 printPrompt(terminal);
                 break;
+
             // Backspace
             case '\u007F':
                 if (commandBuffer.length > 0) {
@@ -40,6 +46,42 @@ function Game() {
                     terminal.write('\b \b');
                 }
                 break;
+
+            // Tab
+            case '\t':
+                const completion = bash.autocomplete(commandBuffer);
+                if (completion) {
+                    clearInput();
+                    commandBuffer = completion;
+                    terminal.write(commandBuffer);
+                }
+                break;
+
+            // Up arrow
+            case '\x1b[A':
+                const upCommand = bash.historyUp();
+                if (upCommand) {
+                    clearInput();
+                    commandBuffer = upCommand;
+                    terminal.write(commandBuffer);
+                }
+                break;
+
+            // Down arrow
+            case '\x1b[B':
+                const downCommand = bash.historyDown();
+                if (downCommand) {
+                    clearInput();
+                    commandBuffer = downCommand;
+                    terminal.write(commandBuffer);
+                }
+                break;
+
+            // Left, right arrow
+            case '\x1b[D':
+            case '\x1b[C':
+                break;
+
             default:
                 commandBuffer += e;
                 terminal.write(e);

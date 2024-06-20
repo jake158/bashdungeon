@@ -8,8 +8,11 @@ function BashEmulator(eventEmitter) {
 
 
     const pushToHistory = (command) => {
-        history.push(command);
-        historyIndex = history.length;
+        // No duplicates
+        if (command != history[historyIndex - 1]) {
+            history.push(command);
+            historyIndex = history.length;
+        }
     };
 
     const parseCommand = (input) => {
@@ -37,7 +40,6 @@ function BashEmulator(eventEmitter) {
         // TODO: Bash remembers what was in buffer
         // E.g. type "test", press UpArrow, DownArrow
         // Result is "test"
-        // TODO 2: Bash does not return duplicate history entries
         if (historyIndex > 0) {
             historyIndex--;
             return history[historyIndex];
