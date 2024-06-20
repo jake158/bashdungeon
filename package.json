@@ -1,7 +1,32 @@
 {
+  "name": "bashdungeon",
+  "description": "A game for learning Bash (Bourne-Again SHell)",
+  "version": "1.0.0",
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
     "modern-normalize": "^2.0.0"
-  }
+  },
+  "devDependencies": {
+    "css-loader": "^7.1.2",
+    "html-webpack-plugin": "^5.6.0",
+    "style-loader": "^4.0.0",
+    "webpack": "^5.92.1",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^5.0.4"
+  },
+  "scripts": {
+    "start": "webpack serve --mode development",
+    "build": "webpack --mode production"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jake158/bashdungeon.git"
+  },
+  "author": "jake158",
+  "license": "GPL3",
+  "bugs": {
+    "url": "https://github.com/jake158/bashdungeon/issues"
+  },
+  "homepage": "https://github.com/jake158/bashdungeon#readme"
 }

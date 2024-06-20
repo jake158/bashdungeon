@@ -1,3 +1,6 @@
+@import 'modern-normalize/modern-normalize.css';
+
+
 body {
     background-color: #2d2d2d;
     color: #ffffff;
@@ -8,7 +11,7 @@ body {
 .terminal-wrapper {
     background-color: black;
     padding: 0px 0px 0px 11px;
-    width: 700px;;
+    width: 700px;
 }
 
 #terminal {
