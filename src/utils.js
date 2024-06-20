@@ -1,4 +1,5 @@
-import { getWorkingDirectory, getHomeDirectory } from './fileSystem.js';
+import { getWorkingDirectory, getHomeDirectory } from './emulator/fileSystem.js';
+
 
 const green = '\x1b[32m';
 const blue = '\x1b[34m';
@@ -9,18 +10,40 @@ const userAtHost = `${green}wizard@dungeon${reset}`;
 const homeDirectory = getHomeDirectory();
 
 
-export const printPrompt = (terminal) => {
+function printPrompt(terminal) {
     const currentDirectory = getWorkingDirectory();
     const displayDirectory = currentDirectory.replace(homeDirectory, '~');
     const prompt = `${bold}${userAtHost}:${bold}${blue}${displayDirectory}${reset}$ `;
     terminal.write(`\r\n${prompt}`);
-};
+}
 
-export const print = (terminal, text, printBold = false, addNewLine = true) => {
+
+function print(terminal, text, printBold = false, addNewLine = true) {
     const formattedText = printBold ? `${bold}${text}${reset}` : text;
-    if (addNewLine) {
+    if (addNewLine && text) {
         terminal.write(`\r\n${formattedText}`);
     } else {
         terminal.write(`${formattedText}`);
     }
+}
+
+
+const ascii = {
+    welcome: `
+Welcome to the
+
+     ▄▄▄▄·  ▄▄▄· .▄▄ ·  ▄ .▄    ·▄▄▄▄  ▄• ▄▌ ▐ ▄  ▄▄ • ▄▄▄ .       ▐ ▄ 
+     ▐█ ▀█▪▐█ ▀█ ▐█ ▀. ██▪▐█    ██▪ ██ █▪██▌•█▌▐█▐█ ▀ ▪▀▄.▀·▪     •█▌▐█
+     ▐█▀▀█▄▄█▀▀█ ▄▀▀▀█▄██▀▐█    ▐█· ▐█▌█▌▐█▌▐█▐▐▌▄█ ▀█▄▐▀▀▪▄ ▄█▀▄ ▐█▐▐▌
+     ██▄▪▐█▐█ ▪▐▌▐█▄▪▐███▌▐▀    ██. ██ ▐█▄█▌██▐█▌▐█▄▪▐█▐█▄▄▌▐█▌.▐▌██▐█▌
+     ·▀▀▀▀  ▀  ▀  ▀▀▀▀ ▀▀▀ ·    ▀▀▀▀▀•  ▀▀▀ ▀▀ █▪·▀▀▀▀  ▀▀▀  ▀█▄▀▪▀▀ █▪
+
+`,
+};
+
+
+export {
+    printPrompt,
+    print,
+    ascii
 };

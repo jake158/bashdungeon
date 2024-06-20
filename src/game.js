@@ -1,13 +1,11 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { BashEmulator } from './emulator/bash.js';
+import { EventEmitter } from './eventEmitter.js';
+import { printPrompt, print, ascii } from './utils.js';
 
-import { Cd, Ls, Pwd, Clear } from './commands.js';
-import { printPrompt, print } from './utils.js';
-import { ascii } from './ascii.js';
 
-
-addEventListener("DOMContentLoaded", (event) => {
-
+function Game() {
     const terminal = new Terminal({
         fontSize: 17,
         fontFamily: 'Ubuntu Mono, courier-new, courier, monospace',
@@ -22,13 +20,16 @@ addEventListener("DOMContentLoaded", (event) => {
     window.addEventListener('resize', () => fitAddon.fit());
 
     let commandBuffer = '';
+    const eventEmitter = EventEmitter();
+    const bashEmulator = BashEmulator(eventEmitter);
 
 
     terminal.onData(e => {
         switch (e) {
             // Enter
             case '\r':
-                processCommand(commandBuffer);
+                const result = bashEmulator.execute(commandBuffer);
+                print(terminal, result);
                 commandBuffer = '';
                 printPrompt(terminal);
                 break;
@@ -45,25 +46,14 @@ addEventListener("DOMContentLoaded", (event) => {
         }
     });
 
-    const commandRegistry = {
-        'cd': new Cd(terminal),
-        'ls': new Ls(terminal),
-        'pwd': new Pwd(terminal),
-        'clear': new Clear(terminal)
-    };
+    eventEmitter.on('clear', () => terminal.reset());
 
-    const processCommand = (input) => {
-        const [commandName, ...args] = input.trim().split(/\s+/);
-        const command = commandRegistry[commandName];
-
-        if (command) {
-            command.execute(args);
-        } else {
-            print(terminal, `Command not found: ${input}`);
-        }
-    };
-
-    print(terminal, ascii.banner, false, false);
+    print(terminal, ascii.welcome, false, false);
     printPrompt(terminal);
     terminal.focus();
+}
+
+
+window.addEventListener("DOMContentLoaded", (e) => {
+    Game();
 });
