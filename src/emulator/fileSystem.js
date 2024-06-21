@@ -57,29 +57,25 @@ function FileSystem() {
         return '/' + stack.join('/');
     };
 
-    const isValidPath = (path) => {
-        const parts = path.split('/').filter(Boolean);
+    const changeDirectory = (path) => {
+        // TODO: cd -
+        const absolutePath = evaluatePath(path);
+        const parts = absolutePath.split('/').filter(Boolean);
         parts.unshift('/');
 
         let dir = tree;
         for (const part of parts) {
             if (dir[part] && dir[part].contents) {
                 dir = dir[part].contents;
-            } else {
-                return false;
+            }
+            else if (dir[part]) {
+                return `bash: cd: ${path.replace('~', getHomeDirectory())}: Not a directory`
+            }
+            else {
+                return `bash: cd: ${path.replace('~', getHomeDirectory())}: No such file or directory`;
             }
         }
-        return true;
-    };
-
-    const changeDirectory = (path) => {
-        const absolutePath = evaluatePath(path);
-
-        if (isValidPath(absolutePath)) {
-            currentDirectory = absolutePath;
-        } else {
-            return `bash: cd: ${path.replace('~', getHomeDirectory())}: No such file or directory`;
-        }
+        currentDirectory = absolutePath;
         return '';
     };
 
