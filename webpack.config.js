@@ -35,6 +35,8 @@ module.exports = {
         }),
     ],
 
+    devtool: 'cheap-module-source-map',
+
     devServer: {
         static: {
             directory: path.resolve(__dirname),
