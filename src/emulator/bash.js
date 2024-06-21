@@ -2,7 +2,7 @@ import { FileSystem } from './fileSystem.js';
 import { CommandRegistry } from './commands.js';
 
 
-function BashEmulator(eventEmitter, colorize) {
+function BashEmulator(eventEmitter, colorize = (text) => text) {
     const fileSystem = FileSystem();
     const commandRegistry = CommandRegistry(fileSystem);
     const history = [];
