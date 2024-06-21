@@ -1,23 +1,40 @@
 
 
+function Dir(name, contents = {}, permissions = 'drwxr-xr-x') {
+    return {
+        type: 'directory',
+        name,
+        permissions,
+        contents
+    }
+}
+
+
+function File(name, content = '', permissions = '-rw-r--r--') {
+    return {
+        type: 'file',
+        name,
+        permissions,
+        content
+    }
+}
+
+
 function FileSystem() {
     const homeDirectory = '/home/wizard';
     let currentDirectory = `${homeDirectory}/Dungeon`;
 
-    const files = {
-        '/': {
-            'home':
-            {
-                'wizard':
-                {
-                    'Dungeon':
-                    {
-                        'file1.txt': '',
-                        'file2.txt': ''
-                    }
-                }
-            }
-        }
+    const tree = {
+        '/': Dir('/', {
+            'home': Dir('home', {
+                'wizard': Dir('wizard', {
+                    'Dungeon': Dir('Dungeon', {
+                        'file1.txt': File('file1.txt'),
+                        'file2.txt': File('file2.txt')
+                    })
+                })
+            })
+        })
     };
 
     const evaluatePath = (path) => {
@@ -44,10 +61,10 @@ function FileSystem() {
         const parts = path.split('/').filter(Boolean);
         parts.unshift('/');
 
-        let dir = files;
+        let dir = tree;
         for (const part of parts) {
-            if (dir[part]) {
-                dir = dir[part];
+            if (dir[part] && dir[part].contents) {
+                dir = dir[part].contents;
             } else {
                 return false;
             }
@@ -61,7 +78,7 @@ function FileSystem() {
         if (isValidPath(absolutePath)) {
             currentDirectory = absolutePath;
         } else {
-            return `bash: cd: ${path}: No such file or directory`;
+            return `bash: cd: ${path.replace('~', getHomeDirectory())}: No such file or directory`;
         }
         return '';
     };
@@ -70,10 +87,10 @@ function FileSystem() {
         const parts = getWorkingDirectory().split('/').filter(Boolean);
         parts.unshift('/');
 
-        let dir = files;
+        let dir = tree;
         for (const part of parts) {
             if (part) {
-                dir = dir[part];
+                dir = dir[part].contents;
             }
         }
         return Object.keys(dir).join(' ');
