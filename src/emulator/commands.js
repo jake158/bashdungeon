@@ -1,7 +1,6 @@
-import { changeDirectory, listDirectory, getWorkingDirectory } from './fileSystem.js';
 
 
-function CommandRegistry() {
+function CommandRegistry(fileSystem) {
 
     const commands = {
 
@@ -10,16 +9,16 @@ function CommandRegistry() {
                 return 'No directory specified';
             }
             const path = args[0];
-            const error = changeDirectory(path);
+            const error = fileSystem.changeDirectory(path);
             return error || '';
         },
 
         'ls': () => {
-            return listDirectory()
+            return fileSystem.listDirectory()
         },
 
         'pwd': () => {
-            return getWorkingDirectory()
+            return fileSystem.getWorkingDirectory()
         },
 
         'clear': () => {
@@ -29,6 +28,7 @@ function CommandRegistry() {
     };
 
     const get = (name) => commands[name];
+
 
     return { get };
 }
