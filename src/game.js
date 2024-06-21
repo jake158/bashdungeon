@@ -2,7 +2,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { BashEmulator } from './emulator/bash.js';
 import { EventEmitter } from './eventEmitter.js';
-import { printPrompt, print, ascii } from './utils.js';
+import { colorize, print, ascii } from './utils.js';
 
 
 function Game() {
@@ -20,7 +20,7 @@ function Game() {
     window.addEventListener('resize', () => fitAddon.fit());
 
     const eventEmitter = EventEmitter();
-    const bash = BashEmulator(eventEmitter);
+    const bash = BashEmulator(eventEmitter, colorize);
     let commandBuffer = '';
 
     const clearInput = () => {
@@ -36,7 +36,7 @@ function Game() {
                 const result = bash.execute(commandBuffer);
                 print(terminal, result);
                 commandBuffer = '';
-                printPrompt(terminal);
+                print(terminal, bash.getPrompt());
                 break;
 
             // Backspace
@@ -91,7 +91,7 @@ function Game() {
     eventEmitter.on('clear', () => terminal.reset());
 
     print(terminal, ascii.welcome, false, false);
-    printPrompt(terminal);
+    print(terminal, bash.getPrompt());
     terminal.focus();
 }
 
