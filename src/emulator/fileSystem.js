@@ -19,13 +19,7 @@ function Dir(name, contents = [], permissions = 'drwxr-xr-x') {
 
     const findItemByName = (name) => {
         checkPermissions('execute');
-        const item = _contents.find(item => item.getName() === name);
-        if (item && item.getType() === 'directory' && item.getPermissions()[3] != 'x') {
-            // Should not be able to traverse directories without execute
-            // TODO: is there a better way?
-            throw new Error('Permission denied');
-        }
-        return item;
+        return _contents.find(item => item.getName() === name);
     };
 
     const removeItem = (item) => {
@@ -45,6 +39,7 @@ function Dir(name, contents = [], permissions = 'drwxr-xr-x') {
         getType: () => _type,
         getName: () => _name,
         getPermissions: () => _permissions,
+        isEmpty: () => _contents.length === 0,
         getContents: () => {
             checkPermissions('read');
             return _contents;
@@ -107,8 +102,8 @@ function FileSystem() {
                 Dir('Dungeon', [
                     File('file1.txt'),
                     File('file2.txt'),
-                    Dir('closed', {}, 'drw-------'),
-                    Dir('unreadable', {}, 'd-wx------')
+                    Dir('noexecute', [], 'drw-------'),
+                    Dir('noread', [], 'd-wx------')
                 ])
             ])
         ])
@@ -172,6 +167,10 @@ function FileSystem() {
             else if (item.getType() != 'directory') {
                 throw new Error('Not a directory')
             }
+            else if (item.getPermissions()[3] != 'x') {
+                throw new Error('Permission denied');
+            }
+
             currentDirectory = absolutePath;
             return '';
         },
@@ -219,7 +218,7 @@ function FileSystem() {
             else if (directory.getType() != 'directory') {
                 throw new Error('Not a directory');
             }
-            else if (directory.getContents().length > 0) {
+            else if (!directory.isEmpty()) {
                 throw new Error('Directory not empty');
             }
 
