@@ -34,7 +34,7 @@ function BashEmulator(eventEmitter, colorize = (text) => text) {
             eventEmitter.emit(commandName);
             return command(args);
         } else {
-            return `${input}: command not found`;
+            return `${commandName}: command not found`;
         }
     };
 
