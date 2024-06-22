@@ -66,7 +66,7 @@ function BashEmulator(eventEmitter, colorize = (text) => text) {
 
     const getPrompt = () => {
         const userAtHost = 'wizard@dungeon';
-        const currentDirectory = fileSystem.getWorkingDirectory();
+        const currentDirectory = fileSystem.pwd();
         const displayDirectory = currentDirectory.replace(fileSystem.getHomeDirectory(), '~');
         return `${colorize(userAtHost, 'bold', 'green')}:${colorize(displayDirectory, 'bold', 'blue')}$ `;
     };

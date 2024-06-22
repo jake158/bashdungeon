@@ -9,16 +9,16 @@ function CommandRegistry(fileSystem) {
                 return 'No directory specified';
             }
             const path = args[0];
-            const error = fileSystem.changeDirectory(path);
+            const error = fileSystem.cd(path);
             return error || '';
         },
 
         'ls': () => {
-            return fileSystem.listDirectory()
+            return fileSystem.ls()
         },
 
         'pwd': () => {
-            return fileSystem.getWorkingDirectory()
+            return fileSystem.pwd()
         },
 
         'clear': () => {

@@ -109,7 +109,7 @@ function FileSystem() {
         return '/' + stack.join('/');
     };
 
-    const changeDirectory = (path) => {
+    const cd = (path) => {
         // TODO: cd -
         const absolutePath = evaluatePath(path);
         const parts = absolutePath.split('/').filter(Boolean);
@@ -129,7 +129,7 @@ function FileSystem() {
         return '';
     };
 
-    const listDirectory = () => {
+    const ls = () => {
         const parts = currentDirectory.split('/').filter(Boolean);
 
         let dir = tree;
@@ -144,10 +144,10 @@ function FileSystem() {
 
 
     return {
-        getWorkingDirectory: () => currentDirectory,
         getHomeDirectory: () => homeDirectory,
-        changeDirectory,
-        listDirectory,
+        pwd: () => currentDirectory,
+        cd,
+        ls,
     };
 }
 
