@@ -1,6 +1,7 @@
 
 
 function Dir(name, contents = [], permissions = 'drwxr-xr-x') {
+    const _type = 'directory';
     let _name = name;
     let _permissions = permissions;
     let _contents = contents;
@@ -19,6 +20,7 @@ function Dir(name, contents = [], permissions = 'drwxr-xr-x') {
 
 
     return {
+        getType: () => _type,
         getName: () => _name,
         getPermissions: () => _permissions,
         getContents: () => {
@@ -26,14 +28,8 @@ function Dir(name, contents = [], permissions = 'drwxr-xr-x') {
             if (error) return error;
             return _contents;
         },
-        setContents: (newContents) => {
-            _contents = newContents;
-        },
-        addFile: (file) => {
-            _contents.push(file);
-        },
-        addDir: (dir) => {
-            _contents.push(dir);
+        add: (item) => {
+            _contents.push(item);
         },
         findItemByName
     };
@@ -41,6 +37,7 @@ function Dir(name, contents = [], permissions = 'drwxr-xr-x') {
 
 
 function File(name, content = '', permissions = '-rw-r--r--') {
+    const _type = 'file';
     let _name = name;
     let _permissions = permissions;
     let _content = content;
@@ -55,6 +52,7 @@ function File(name, content = '', permissions = '-rw-r--r--') {
 
 
     return {
+        getType: () => _type,
         getName: () => _name,
         getPermissions: () => _permissions,
         getContent: () => {
@@ -62,15 +60,15 @@ function File(name, content = '', permissions = '-rw-r--r--') {
             if (error) return error;
             return _content;
         },
-        setContent: (newContent) => {
+        setContent: (content) => {
             const error = checkPermissions('write');
             if (error) return error;
-            _content = newContent;
+            _content = content;
         },
-        appendContent: (additionalContent) => {
+        appendContent: (content) => {
             const error = checkPermissions('write');
             if (error) return error;
-            _content += additionalContent;
+            _content += content;
         }
     };
 }
@@ -112,18 +110,19 @@ function FileSystem() {
     };
 
     const changeDirectory = (path) => {
+        // TODO: cd -
         const absolutePath = evaluatePath(path);
         const parts = absolutePath.split('/').filter(Boolean);
 
         let dir = tree;
         for (const part of parts) {
             const foundItem = dir.findItemByName(part);
-            if (foundItem && foundItem.getContents) {
+            if (foundItem && foundItem.getType() === 'directory') {
                 dir = foundItem;
             } else if (foundItem) {
-                return `bash: cd: ${path.replace('~', getHomeDirectory())}: Not a directory`
+                return `bash: cd: ${path.replace('~', homeDirectory)}: Not a directory`
             } else {
-                return `bash: cd: ${path.replace('~', getHomeDirectory())}: No such file or directory`;
+                return `bash: cd: ${path.replace('~', homeDirectory)}: No such file or directory`;
             }
         }
         currentDirectory = absolutePath;
@@ -131,29 +130,24 @@ function FileSystem() {
     };
 
     const listDirectory = () => {
-        const parts = getWorkingDirectory().split('/').filter(Boolean);
-        parts.unshift('/');
+        const parts = currentDirectory.split('/').filter(Boolean);
 
         let dir = tree;
         for (const part of parts) {
-            const foundItem = dir.findItemByName(part);
-            if (foundItem) {
-                dir = foundItem;
+            const newDir = dir.findItemByName(part);
+            if (newDir) {
+                dir = newDir;
             }
         }
         return dir.getContents().map(item => item.getName()).join(' ');
     };
 
-    const getWorkingDirectory = () => currentDirectory;
-
-    const getHomeDirectory = () => homeDirectory;
-
 
     return {
+        getWorkingDirectory: () => currentDirectory,
+        getHomeDirectory: () => homeDirectory,
         changeDirectory,
         listDirectory,
-        getWorkingDirectory,
-        getHomeDirectory
     };
 }
 
