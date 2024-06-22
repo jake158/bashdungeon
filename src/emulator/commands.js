@@ -8,8 +8,9 @@ function CommandRegistry(fileSystem) {
             return fileSystem.pwd()
         },
 
-        'ls': () => {
-            return fileSystem.ls()
+        'ls': (args) => {
+            // TODO: arg evaluation
+            return fileSystem.ls(args[0])
         },
 
         'cd': (args) => {
