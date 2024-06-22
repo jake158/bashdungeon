@@ -4,27 +4,35 @@ function CommandRegistry(fileSystem) {
 
     const commands = {
 
-        'cd': (args) => {
-            if (args.length < 1) {
-                return 'No directory specified';
-            }
-            const path = args[0];
-            const error = fileSystem.cd(path);
-            return error || '';
+        'pwd': () => {
+            return fileSystem.pwd()
         },
 
         'ls': () => {
             return fileSystem.ls()
         },
 
-        'pwd': () => {
-            return fileSystem.pwd()
+        'cd': (args) => {
+            if (args.length > 1) {
+                return 'bash: cd: too many arguments';
+            }
+            const path = args.length === 1 ? args[0] : '~';
+            const error = fileSystem.cd(path);
+            return error || '';
+        },
+
+        'mkdir': (args) => {
+            if (args.length < 1) {
+                return 'mkdir: missing operand';
+            }
+            // TODO: arg evaluation
+            return fileSystem.mkdir(args[0]);
         },
 
         'clear': () => {
             // Handled by terminal using eventEmitter
             return '';
-        }
+        },
     };
 
     const get = (name) => commands[name];

@@ -8,7 +8,7 @@ function Dir(name, contents = [], permissions = 'drwxr-xr-x') {
 
     const checkPermissions = (action) => {
         // TODO: Implement
-        if (_permissions[1] !== 'r') {
+        if (action === 'read' && _permissions[1] !== 'r' || action === 'write' && _permissions[2] !== 'w') {
             return `Permission denied: cannot ${action} directory ${_name}`;
         }
         return null;
@@ -28,7 +28,9 @@ function Dir(name, contents = [], permissions = 'drwxr-xr-x') {
             if (error) return error;
             return _contents;
         },
-        add: (item) => {
+        addItem: (item) => {
+            const error = checkPermissions('write');
+            if (error) return error;
             _contents.push(item);
         },
         findItemByName
@@ -105,9 +107,24 @@ function FileSystem() {
                 stack.push(part);
             }
         }
-
         return '/' + stack.join('/');
     };
+
+    const getItem = (path) => {
+        const parts = path.split('/').filter(Boolean);
+
+        let curr = tree;
+        for (const part of parts) {
+            const item = curr.findItemByName(part);
+            if (item) {
+                curr = item;
+            }
+            else {
+                return null;
+            }
+        }
+        return curr;
+    }
 
     const cd = (path) => {
         // TODO: cd -
@@ -142,12 +159,39 @@ function FileSystem() {
         return dir.getContents().map(item => item.getName()).join(' ');
     };
 
+    const mkdir = (path) => {
+        const absolutePath = evaluatePath(path);
+        const sep = absolutePath.lastIndexOf('/');
+        const directory = getItem(absolutePath.substring(0, sep));
+        const dirname = absolutePath.substring(sep + 1);
+
+        if (!directory) {
+            return `mkdir: cannot create directory ‘${path.replace('~', homeDirectory)}’: No such file or directory`
+        }
+        else if (directory.getType() != 'directory') {
+            return `mkdir: cannot create directory ‘${path.replace('~', homeDirectory)}’: Not a directory`
+        }
+        else if (directory.findItemByName(dirname) || !dirname) {
+            return `mkdir: cannot create directory ‘${path.replace('~', homeDirectory)}’: File exists`
+        }
+
+        const error = directory.addItem(Dir(dirname));
+        return error || '';
+    }
+
+    const rmdir = (path) => {
+        // TODO: Implement
+        return '';
+    }
+
 
     return {
         getHomeDirectory: () => homeDirectory,
         pwd: () => currentDirectory,
-        cd,
         ls,
+        cd,
+        mkdir,
+        rmdir
     };
 }
 
