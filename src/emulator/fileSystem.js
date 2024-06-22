@@ -18,6 +18,19 @@ function Dir(name, contents = [], permissions = 'drwxr-xr-x') {
         return _contents.find(item => item.getName() === name);
     };
 
+    const removeItem = (item) => {
+        const error = checkPermissions('write');
+        if (error) return error;
+
+        const index = _contents.indexOf(item);
+        if (index !== -1) {
+            _contents.splice(index, 1);
+            return '';
+        } else {
+            throw new Error(`Item ${item.getName()} not found in directory ${_name}`);
+        }
+    };
+
 
     return {
         getType: () => _type,
@@ -33,7 +46,8 @@ function Dir(name, contents = [], permissions = 'drwxr-xr-x') {
             if (error) return error;
             _contents.push(item);
         },
-        findItemByName
+        findItemByName,
+        removeItem
     };
 }
 
@@ -167,8 +181,23 @@ function FileSystem() {
     };
 
     const rmdir = (path) => {
-        // TODO: Implement
-        return '';
+        const absolutePath = evaluatePath(path);
+        const directory = getItem(absolutePath);
+        const sep = absolutePath.lastIndexOf('/');
+
+        if (!directory) {
+            return `rmdir: failed to remove '${path.replace('~', homeDirectory)}': No such file or directory`
+        }
+        else if (directory.getType() != 'directory') {
+            return `rmdir: failed to remove '${path.replace('~', homeDirectory)}': Not a directory`
+        }
+        else if (directory.getContents().length > 0) {
+            return `rmdir: failed to remove '${path.replace('~', homeDirectory)}': Directory not empty`
+        }
+
+        const parentDirectory = getItem(absolutePath.substring(0, sep));
+        const error = parentDirectory.removeItem(directory);
+        return error || '';
     };
 
 

@@ -29,6 +29,14 @@ function CommandRegistry(fileSystem) {
             return fileSystem.mkdir(args[0]);
         },
 
+        'rmdir': (args) => {
+            if (args.length < 1) {
+                return 'rmdir: missing operand';
+            }
+            // TODO: arg evaluation
+            return fileSystem.rmdir(args[0]);
+        },
+
         'clear': () => {
             // Handled by terminal using eventEmitter
             return '';
