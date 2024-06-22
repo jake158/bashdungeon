@@ -112,8 +112,8 @@ function FileSystem() {
 
     const getItem = (path) => {
         const parts = path.split('/').filter(Boolean);
-
         let curr = tree;
+
         for (const part of parts) {
             const item = curr.findItemByName(part);
             if (item) {
@@ -124,38 +124,25 @@ function FileSystem() {
             }
         }
         return curr;
-    }
+    };
 
     const cd = (path) => {
         // TODO: cd -
         const absolutePath = evaluatePath(path);
-        const parts = absolutePath.split('/').filter(Boolean);
+        const item = getItem(absolutePath);
 
-        let dir = tree;
-        for (const part of parts) {
-            const foundItem = dir.findItemByName(part);
-            if (foundItem && foundItem.getType() === 'directory') {
-                dir = foundItem;
-            } else if (foundItem) {
-                return `bash: cd: ${path.replace('~', homeDirectory)}: Not a directory`
-            } else {
-                return `bash: cd: ${path.replace('~', homeDirectory)}: No such file or directory`;
-            }
+        if (!item) {
+            return `bash: cd: ${path.replace('~', homeDirectory)}: No such file or directory`;
+        }
+        else if (item.getType() != 'directory') {
+            return `bash: cd: ${path.replace('~', homeDirectory)}: Not a directory`
         }
         currentDirectory = absolutePath;
         return '';
     };
 
     const ls = () => {
-        const parts = currentDirectory.split('/').filter(Boolean);
-
-        let dir = tree;
-        for (const part of parts) {
-            const newDir = dir.findItemByName(part);
-            if (newDir) {
-                dir = newDir;
-            }
-        }
+        const dir = getItem(currentDirectory);
         return dir.getContents().map(item => item.getName()).join(' ');
     };
 
@@ -171,18 +158,18 @@ function FileSystem() {
         else if (directory.getType() != 'directory') {
             return `mkdir: cannot create directory ‘${path.replace('~', homeDirectory)}’: Not a directory`
         }
-        else if (directory.findItemByName(dirname) || !dirname) {
+        else if (!dirname || directory.findItemByName(dirname)) {
             return `mkdir: cannot create directory ‘${path.replace('~', homeDirectory)}’: File exists`
         }
 
         const error = directory.addItem(Dir(dirname));
         return error || '';
-    }
+    };
 
     const rmdir = (path) => {
         // TODO: Implement
         return '';
-    }
+    };
 
 
     return {
