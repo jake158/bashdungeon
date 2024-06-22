@@ -10,7 +10,7 @@ function CommandRegistry(fileSystem) {
 
         'ls': (args) => {
             // TODO: arg evaluation
-            return fileSystem.ls(args[0])
+            return fileSystem.ls(args.length > 0 ? args[0] : '.')
         },
 
         'cd': (args) => {
