@@ -20,7 +20,7 @@ function Dir(name, contents = [], permissions = 'drwxr-xr-x') {
     const findItemByName = (name) => {
         checkPermissions('execute');
         const item = _contents.find(item => item.getName() === name);
-        if (item.getType() === 'directory' && item.getPermissions()[3] != 'x') {
+        if (item && item.getType() === 'directory' && item.getPermissions()[3] != 'x') {
             // Should not be able to traverse directories without execute
             // TODO: is there a better way?
             throw new Error('Permission denied');
