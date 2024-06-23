@@ -145,70 +145,90 @@ function FileSystem() {
         return curr;
     };
 
-    // TODO: Wrapper that catches Permission denied with command specific error chaining
-    // E.g. ls: cannot open directory 'dir/': Permission denied
-
-    const ls = (path) => {
-        const absolutePath = evaluatePath(path);
-        const dir = getItem(absolutePath);
-        return dir.getContents().map(item => item.getName()).join(' ');
+    const syscommand = (func, message = null) => {
+        // Chaining Permission Denied errors
+        return function (...args) {
+            try {
+                return func(...args);
+            } catch (error) {
+                throw new Error(`${message ? message + ' ' : ''}'${args[0].replace('~', homeDirectory)}': ${error.message}`);
+            }
+        };
     };
 
-    const cd = (path) => {
-        const absolutePath = path === '-' ? previousDirectory : evaluatePath(path);
-        const item = getItem(absolutePath);
 
-        if (!item) {
-            throw new Error(`${path.replace('~', homeDirectory)}/: No such file or directory`);
-        }
-        else if (item.getType() != 'directory') {
-            throw new Error(`${path.replace('~', homeDirectory)}/: Not a directory`)
-        }
-        else if (item.getPermissions()[3] != 'x') {
-            throw new Error(`${path.replace('~', homeDirectory)}/: Permission denied`);
-        }
+    const ls = syscommand(
+        (path) => {
+            const absolutePath = evaluatePath(path);
+            const dir = getItem(absolutePath);
+            return dir.getContents().map(item => item.getName()).join(' ');
+        },
+        'cannot open directory'
+    );
 
-        previousDirectory = currentDirectory;
-        currentDirectory = absolutePath;
-    };
+    const cd = syscommand(
+        (path) => {
+            const absolutePath = path === '-' ? previousDirectory : evaluatePath(path);
+            const item = getItem(absolutePath);
 
-    const mkdir = (path) => {
-        const absolutePath = evaluatePath(path);
-        const sep = absolutePath.lastIndexOf('/');
-        const directory = getItem(absolutePath.substring(0, sep));
-        const dirname = absolutePath.substring(sep + 1);
+            if (!item) {
+                throw new Error('No such file or directory');
+            }
+            else if (item.getType() != 'directory') {
+                throw new Error('Not a directory');
+            }
+            else if (item.getPermissions()[3] != 'x') {
+                throw new Error('Permission denied');
+            }
 
-        if (!directory) {
-            throw new Error(`cannot create directory ${path.replace('~', homeDirectory)}: No such file or directory`);
+            previousDirectory = currentDirectory;
+            currentDirectory = absolutePath;
         }
-        else if (directory.getType() != 'directory') {
-            throw new Error(`cannot create directory ${path.replace('~', homeDirectory)}: Not a directory`);
-        }
-        else if (!dirname || directory.findItemByName(dirname)) {
-            throw new Error(`cannot create directory ${path.replace('~', homeDirectory)}: File exists`);
-        }
+    );
 
-        directory.addItem(Dir(dirname));
-    };
+    const mkdir = syscommand(
+        (path) => {
+            const absolutePath = evaluatePath(path);
+            const sep = absolutePath.lastIndexOf('/');
+            const directory = getItem(absolutePath.substring(0, sep));
+            const dirname = absolutePath.substring(sep + 1);
 
-    const rmdir = (path) => {
-        const absolutePath = evaluatePath(path);
-        const directory = getItem(absolutePath);
-        const sep = absolutePath.lastIndexOf('/');
+            if (!directory) {
+                throw new Error('No such file or directory');
+            }
+            else if (directory.getType() != 'directory') {
+                throw new Error('Not a directory');
+            }
+            else if (!dirname || directory.findItemByName(dirname)) {
+                throw new Error('File exists');
+            }
 
-        if (!directory) {
-            throw new Error(`failed to remove '${path.replace('~', homeDirectory)}': No such file or directory`);
-        }
-        else if (directory.getType() != 'directory') {
-            throw new Error(`failed to remove '${path.replace('~', homeDirectory)}': Not a directory`);
-        }
-        else if (!directory.isEmpty()) {
-            throw new Error(`failed to remove '${path.replace('~', homeDirectory)}': Directory not empty`);
-        }
+            directory.addItem(Dir(dirname));
+        },
+        'cannot create directory'
+    );
 
-        const parentDirectory = getItem(absolutePath.substring(0, sep));
-        parentDirectory.removeItem(directory);
-    };
+    const rmdir = syscommand(
+        (path) => {
+            const absolutePath = evaluatePath(path);
+            const directory = getItem(absolutePath);
+            const sep = absolutePath.lastIndexOf('/');
+
+            if (!directory) {
+                throw new Error('No such file or directory');
+            }
+            else if (directory.getType() != 'directory') {
+                throw new Error('Not a directory');
+            }
+            else if (!directory.isEmpty()) {
+                throw new Error('Directory not empty');
+            }
+
+            const parentDirectory = getItem(absolutePath.substring(0, sep));
+            parentDirectory.removeItem(directory);
+        },
+        'failed to remove'
+    );
 
 
     return {
