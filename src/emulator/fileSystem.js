@@ -95,6 +95,7 @@ function File(name, content = '', permissions = '-rw-r--r--') {
 function FileSystem() {
     const homeDirectory = '/home/wizard';
     let currentDirectory = `${homeDirectory}/Dungeon`;
+    let previousDirectory = currentDirectory;
 
     const tree = Dir('/', [
         Dir('home', [
@@ -155,10 +156,17 @@ function FileSystem() {
     };
 
 
+    const ls = command(
+        (path) => {
+            const absolutePath = evaluatePath(path);
+            const dir = getItem(absolutePath);
+            return dir.getContents().map(item => item.getName()).join(' ');
+        },
+        'ls: cannot open directory');
+
     const cd = command(
         (path) => {
-            // TODO: cd -
-            const absolutePath = evaluatePath(path);
+            const absolutePath = path === '-' ? previousDirectory : evaluatePath(path);
             const item = getItem(absolutePath);
 
             if (!item) {
@@ -170,19 +178,12 @@ function FileSystem() {
             else if (item.getPermissions()[3] != 'x') {
                 throw new Error('Permission denied');
             }
-
+            
+            previousDirectory = currentDirectory;
             currentDirectory = absolutePath;
             return '';
         },
         `bash: cd:`);
-
-    const ls = command(
-        (path) => {
-            const absolutePath = evaluatePath(path);
-            const dir = getItem(absolutePath);
-            return dir.getContents().map(item => item.getName()).join(' ');
-        },
-        'ls: cannot open directory');
 
     const mkdir = command(
         (path) => {
@@ -223,8 +224,8 @@ function FileSystem() {
             }
 
             const parentDirectory = getItem(absolutePath.substring(0, sep));
-            const error = parentDirectory.removeItem(directory);
-            return error || '';
+            parentDirectory.removeItem(directory);
+            return '';
         },
         'rmdir: failed to remove');
 
