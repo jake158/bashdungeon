@@ -12,6 +12,7 @@ function CommandRegistry(fileSystem) {
         };
     };
     // TODO: automatic error msg depending on function name?
+    // Doesn't work with anonymous functions in commands
 
     const commands = {
 
@@ -19,14 +20,16 @@ function CommandRegistry(fileSystem) {
             () => {
                 return fileSystem.pwd()
             },
-            'pwd'),
+            'pwd'
+        ),
 
         'ls': command(
             (args) => {
                 // TODO: arg evaluation
                 return fileSystem.ls(args.length > 0 ? args[0] : '.')
             },
-            'ls'),
+            'ls'
+        ),
 
         'cd': command(
             (args) => {
@@ -37,7 +40,8 @@ function CommandRegistry(fileSystem) {
                 fileSystem.cd(path);
                 return '';
             },
-            'bash: cd'),
+            'bash: cd'
+        ),
 
         'mkdir': command(
             (args) => {
@@ -48,7 +52,8 @@ function CommandRegistry(fileSystem) {
                 fileSystem.mkdir(args[0]);
                 return '';
             },
-            'mkdir'),
+            'mkdir'
+        ),
 
         'rmdir': command(
             (args) => {
@@ -59,7 +64,8 @@ function CommandRegistry(fileSystem) {
                 fileSystem.rmdir(args[0]);
                 return '';
             },
-            'rmdir'),
+            'rmdir'
+        ),
 
         'clear': () => {
             // Handled by terminal using eventEmitter
