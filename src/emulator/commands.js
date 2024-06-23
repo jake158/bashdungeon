@@ -2,41 +2,64 @@
 
 function CommandRegistry(fileSystem) {
 
+    const command = (func, name) => {
+        return function (...args) {
+            try {
+                return func(...args);
+            } catch (error) {
+                return `${name}: ${error.message}`;
+            }
+        };
+    };
+    // TODO: automatic error msg depending on function name?
+
     const commands = {
 
-        'pwd': () => {
-            return fileSystem.pwd()
-        },
+        'pwd': command(
+            () => {
+                return fileSystem.pwd()
+            },
+            'pwd'),
 
-        'ls': (args) => {
-            // TODO: arg evaluation
-            return fileSystem.ls(args.length > 0 ? args[0] : '.')
-        },
+        'ls': command(
+            (args) => {
+                // TODO: arg evaluation
+                return fileSystem.ls(args.length > 0 ? args[0] : '.')
+            },
+            'ls'),
 
-        'cd': (args) => {
-            if (args.length > 1) {
-                return 'bash: cd: too many arguments';
-            }
-            const path = args.length === 1 ? args[0] : '~';
-            const error = fileSystem.cd(path);
-            return error || '';
-        },
+        'cd': command(
+            (args) => {
+                if (args.length > 1) {
+                    throw new Error('too many arguments');
+                }
+                const path = args.length === 1 ? args[0] : '~';
+                fileSystem.cd(path);
+                return '';
+            },
+            'bash: cd'),
 
-        'mkdir': (args) => {
-            if (args.length < 1) {
-                return 'mkdir: missing operand';
-            }
-            // TODO: arg evaluation
-            return fileSystem.mkdir(args[0]);
-        },
+        'mkdir': command(
+            (args) => {
+                if (args.length < 1) {
+                    throw new Error('missing operand');
+                }
+                // TODO: arg evaluation
+                fileSystem.mkdir(args[0]);
+                return '';
+            },
+            'mkdir'),
 
-        'rmdir': (args) => {
-            if (args.length < 1) {
-                return 'rmdir: missing operand';
-            }
-            // TODO: arg evaluation
-            return fileSystem.rmdir(args[0]);
-        },
+        'rmdir': command(
+            (args) => {
+                if (args.length < 1) {
+                    throw new Error('missing operand');
+                }
+                // TODO: arg evaluation
+                fileSystem.rmdir(args[0]);
+                return '';
+            },
+            'rmdir'),
 
         'clear': () => {
             // Handled by terminal using eventEmitter
