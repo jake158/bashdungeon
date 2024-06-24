@@ -145,8 +145,7 @@ function FileSystem() {
         return curr;
     };
 
-    const syscommand = (func, message = null) => {
-        // Chaining Permission Denied errors
+    const chainErrors = (func, message = null) => {
         return function (...args) {
             try {
                 return func(...args);
@@ -157,16 +156,23 @@ function FileSystem() {
     };
 
 
-    const ls = syscommand(
+    const ls = chainErrors(
         (path) => {
             const absolutePath = evaluatePath(path);
-            const dir = getItem(absolutePath);
-            return dir.getContents().map(item => item.getName()).join(' ');
+            const item = getItem(absolutePath);
+
+            if (!item) {
+                throw new Error('No such file or directory');
+            }
+            else if (item.getType() === 'file') {
+                return item.getName();
+            }
+            return item.getContents().map(item => item.getName()).join(' ');
         },
-        'cannot open directory'
+        'cannot access'
     );
 
-    const cd = syscommand(
+    const cd = chainErrors(
         (path) => {
             const absolutePath = path === '-' ? previousDirectory : evaluatePath(path);
             const item = getItem(absolutePath);
@@ -186,7 +192,7 @@ function FileSystem() {
         }
     );
 
-    const mkdir = syscommand(
+    const mkdir = chainErrors(
         (path) => {
             const absolutePath = evaluatePath(path);
             const sep = absolutePath.lastIndexOf('/');
@@ -208,7 +214,7 @@ function FileSystem() {
         'cannot create directory'
     );
 
-    const rmdir = syscommand(
+    const rmdir = chainErrors(
         (path) => {
             const absolutePath = evaluatePath(path);
             const directory = getItem(absolutePath);
