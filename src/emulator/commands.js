@@ -2,7 +2,7 @@
 
 function CommandRegistry(fileSystem, colorize = (text) => text) {
 
-    const parseArgs = (args) => {
+    const defaultParseArgs = (args) => {
         const flags = {};
         const positionalArgs = [];
 
@@ -10,11 +10,9 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
             if (arg.startsWith('--') && arg.length > 2) {
                 const [flag, value] = arg.split('=');
                 flags[flag] = value !== undefined ? value : true;
-            }
-            else if (arg.startsWith('-') && !arg.startsWith('--') && arg.length > 1) {
+            } else if (arg.startsWith('-') && !arg.startsWith('--') && arg.length > 1) {
                 arg.slice(1).split('').forEach(flagChar => { flags[`-${flagChar}`] = true; });
-            }
-            else {
+            } else {
                 positionalArgs.push(arg);
             }
         });
@@ -22,10 +20,9 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
     };
 
     const command = (name, func, acceptedFlags = [], customParser = null) => {
-        return function (args) {
+        return function (args, stdin) {
             try {
-                const { positionalArgs, flags } = customParser ? customParser(args) : parseArgs(args);
-
+                const { positionalArgs, flags } = customParser ? customParser(args) : defaultParseArgs(args);
                 if (!customParser) {
                     for (let flag in flags) {
                         if (!acceptedFlags.includes(flag)) {
@@ -33,9 +30,9 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
                         }
                     }
                 }
-                return func(positionalArgs, flags);
+                return { stdin: '', stdout: func(stdin, positionalArgs, flags), stderr: '' };
             } catch (error) {
-                return `${name}: ${error.message}`;
+                return { stdin: '', stdout: '', stderr: `${name}: ${error.message}` };
             }
         };
     };
@@ -52,16 +49,24 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
 
     const commands = {
 
+        'clear': command(
+            // Handled by terminal using eventEmitter
+            'clear',
+            (stdin, args, flags) => {
+                return '';
+            }
+        ),
+
         'pwd': command(
             'pwd',
-            (args, flags) => {
+            (stdin, args, flags) => {
                 return fileSystem.pwd();
             }
         ),
 
         'ls': command(
             'ls',
-            (args, flags) => {
+            (stdin, args, flags) => {
                 if (args.length === 0) {
                     return fileSystem.ls('.');
                 }
@@ -81,7 +86,7 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
 
         'cd': command(
             'bash: cd',
-            (args, flags) => {
+            (stdin, args, flags) => {
                 if (args.length > 1) {
                     throw new Error('too many arguments');
                 }
@@ -93,7 +98,7 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
 
         'mkdir': command(
             'mkdir',
-            (args, flags) => {
+            (stdin, args, flags) => {
                 if (args.length < 1) {
                     throw new Error('missing operand');
                 }
@@ -106,7 +111,7 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
 
         'rmdir': command(
             'rmdir',
-            (args, flags) => {
+            (stdin, args, flags) => {
                 if (args.length < 1) {
                     throw new Error('missing operand');
                 }
@@ -117,11 +122,11 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
             }
         ),
 
-        'clear': command(
-            // Handled by terminal using eventEmitter
-            'clear',
-            (args, flags) => {
-                return '';
+        'cat': command(
+            // Implement
+            'cat',
+            (stdin, args, flags) => {
+                return stdin;
             }
         ),
     };
