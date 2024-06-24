@@ -50,7 +50,7 @@ function BashEmulator(eventEmitter, colorize = (text) => text) {
         pushToHistory(input);
 
         if (command) {
-            // eventEmitter.emit(commandName);
+            eventEmitter.emit(commandName);
             return command(positionalArgs, flags);
         } else {
             return `${commandName}: command not found`;

@@ -14,7 +14,6 @@ function EventEmitter() {
         if (events[event]) {
             events[event].forEach(listener => listener(...args));
         }
-        console.log(`Event ${event} emitted`);
     };
 
     return {
