@@ -1,5 +1,3 @@
-
-
 function CommandRegistry(fileSystem) {
 
     const command = (func, name) => {
@@ -11,28 +9,34 @@ function CommandRegistry(fileSystem) {
             }
         };
     };
-    // TODO: automatic error msg depending on function name?
-    // Doesn't work with anonymous functions in commands
 
     const commands = {
 
         'pwd': command(
-            () => {
-                return fileSystem.pwd()
+            (args, flags) => {
+                for (let flag in flags) {
+                    throw new Error(`${flag}: unrecognized option`);
+                }
+                return fileSystem.pwd();
             },
             'pwd'
         ),
 
         'ls': command(
-            (args) => {
-                // TODO: arg evaluation
-                return fileSystem.ls(args.length > 0 ? args[0] : '.')
+            (args, flags) => {
+                for (let flag in flags) {
+                    throw new Error(`${flag}: unrecognized option`);
+                }
+                return fileSystem.ls(args.length > 0 ? args[0] : '.');
             },
             'ls'
         ),
 
         'cd': command(
-            (args) => {
+            (args, flags) => {
+                for (let flag in flags) {
+                    throw new Error(`${flag}: unrecognized option`);
+                }
                 if (args.length > 1) {
                     throw new Error('too many arguments');
                 }
@@ -44,11 +48,13 @@ function CommandRegistry(fileSystem) {
         ),
 
         'mkdir': command(
-            (args) => {
+            (args, flags) => {
+                for (let flag in flags) {
+                    throw new Error(`${flag}: unrecognized option`);
+                }
                 if (args.length < 1) {
                     throw new Error('missing operand');
                 }
-                // TODO: arg evaluation
                 fileSystem.mkdir(args[0]);
                 return '';
             },
@@ -56,25 +62,29 @@ function CommandRegistry(fileSystem) {
         ),
 
         'rmdir': command(
-            (args) => {
+            (args, flags) => {
+                for (let flag in flags) {
+                    throw new Error(`${flag}: unrecognized option`);
+                }
                 if (args.length < 1) {
                     throw new Error('missing operand');
                 }
-                // TODO: arg evaluation
                 fileSystem.rmdir(args[0]);
                 return '';
             },
             'rmdir'
         ),
 
-        'clear': () => {
-            // Handled by terminal using eventEmitter
-            return '';
-        },
+        'clear': command(
+            (args, flags) => {
+                // Handled by terminal using eventEmitter
+                return '';
+            },
+            'clear'
+        ),
     };
 
     const get = (name) => commands[name];
-
 
     return { get };
 }

@@ -9,32 +9,59 @@ function BashEmulator(eventEmitter, colorize = (text) => text) {
     let historyIndex = 0;
 
 
-    const pushToHistory = (command) => {
-        // No duplicates
-        if (command != history[historyIndex - 1]) {
-            history.push(command);
-            historyIndex = history.length;
-        }
+    const parseArgs = (args) => {
+        const flags = {};
+        const positionalArgs = [];
+
+        let currentFlag = null;
+        args.forEach(arg => {
+            if (arg.startsWith('--')) {
+                const [flag, value] = arg.split('=');
+                flags[flag] = value !== undefined ? value : true;
+                currentFlag = flag;
+            }
+            else if (arg.startsWith('-')) {
+                arg.slice(1).split('').forEach(flagChar => {
+                    flags[`-${flagChar}`] = true;
+                });
+                currentFlag = `-${arg.slice(1)}`;
+            }
+            else {
+                positionalArgs.push(arg);
+                currentFlag = null;
+            }
+        });
+        return { flags, positionalArgs };
     };
 
-    const parseCommand = (input) => {
-        return input.trim().split(/\s+/);
+    const parse = (input) => {
+        const [commandName, ...args] = input.trim().split(/\s+/);
+        const { flags, positionalArgs } = parseArgs(args);
+        return { commandName, flags, positionalArgs };
     };
+
 
     const execute = (input) => {
-        // Return on whitespace
         if (!/\S/.test(input)) {
             return '';
         }
-        const [commandName, ...args] = parseCommand(input);
+        const { commandName, flags, positionalArgs } = parse(input);
         const command = commandRegistry.get(commandName);
         pushToHistory(input);
 
         if (command) {
-            eventEmitter.emit(commandName);
-            return command(args);
+            // eventEmitter.emit(commandName);
+            return command(positionalArgs, flags);
         } else {
             return `${commandName}: command not found`;
+        }
+    };
+
+    const pushToHistory = (command) => {
+        historyIndex = history.length;
+        if (command != history[history.length - 1]) {
+            history.push(command);
+            historyIndex = history.length;
         }
     };
 
