@@ -2,23 +2,47 @@
 
 function CommandRegistry(fileSystem) {
 
-    const command = (name, func, acceptedFlags = []) => {
-        return function (args, flags) {
+    const parseArgs = (args) => {
+        const flags = {};
+        const positionalArgs = [];
+
+        args.forEach(arg => {
+            if (arg.startsWith('--') && arg.length > 2) {
+                const [flag, value] = arg.split('=');
+                flags[flag] = value !== undefined ? value : true;
+            }
+            else if (arg.startsWith('-') && !arg.startsWith('--') && arg.length > 1) {
+                arg.slice(1).split('').forEach(flagChar => { flags[`-${flagChar}`] = true; });
+            }
+            else {
+                positionalArgs.push(arg);
+            }
+        });
+        return { positionalArgs, flags };
+    };
+
+    const command = (name, func, acceptedFlags = [], customParser = null) => {
+        return function (args) {
             try {
-                for (let flag in flags) {
-                    if (!acceptedFlags.includes(flag)) {
-                        throw new Error(`${flag}: unrecognized option`);
+                const { positionalArgs, flags } = customParser ? customParser(args) : parseArgs(args);
+
+                if (!customParser) {
+                    for (let flag in flags) {
+                        if (!acceptedFlags.includes(flag)) {
+                            throw new Error(`${flag}: unrecognized option`);
+                        }
                     }
                 }
-                return func(args, flags);
+                return func(positionalArgs, flags);
             } catch (error) {
                 return `${name}: ${error.message}`;
             }
         };
     };
+
     // TODO:
     // 1. Each command parses flags differently, e.g. `cut -d , -f 2 animals.csv`, `find /home -name puppies.jpg`
-    // Flexible flag parser needs to be implemented instead of rigid one in bash.js
+    // Flexible flag parser with specified structure for each command that requires it
 
     // 2. Cleaner multiple positional args evaluation
     // If one directory permission denies ls, the other still gets printed

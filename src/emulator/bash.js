@@ -8,33 +8,12 @@ function BashEmulator(eventEmitter, colorize = (text) => text) {
     const history = [];
     let historyIndex = 0;
 
-
-    const parseArgs = (args) => {
-        const flags = {};
-        const positionalArgs = [];
-
-        args.forEach(arg => {
-            if (arg.startsWith('--')) {
-                const [flag, value] = arg.split('=');
-                flags[flag] = value !== undefined ? value : true;
-            }
-            else if (arg.startsWith('-')) {
-                arg.slice(1).split('').forEach(flagChar => {
-                    flags[`-${flagChar}`] = true;
-                });
-            }
-            else {
-                positionalArgs.push(arg);
-            }
-        });
-        console.log(flags, positionalArgs);
-        return { flags, positionalArgs };
-    };
-
-    const parse = (input) => {
-        const [commandName, ...args] = input.trim().split(/\s+/);
-        const { flags, positionalArgs } = parseArgs(args);
-        return { commandName, flags, positionalArgs };
+    const pushToHistory = (command) => {
+        historyIndex = history.length;
+        if (command != history[history.length - 1]) {
+            history.push(command);
+            historyIndex = history.length;
+        }
     };
 
 
@@ -42,23 +21,15 @@ function BashEmulator(eventEmitter, colorize = (text) => text) {
         if (!/\S/.test(input)) {
             return '';
         }
-        const { commandName, flags, positionalArgs } = parse(input);
+        const [commandName, ...args] = input.trim().split(/\s+/);
         const command = commandRegistry.get(commandName);
         pushToHistory(input);
 
         if (command) {
             eventEmitter.emit(commandName);
-            return command(positionalArgs, flags);
+            return command(args);
         } else {
             return `${commandName}: command not found`;
-        }
-    };
-
-    const pushToHistory = (command) => {
-        historyIndex = history.length;
-        if (command != history[history.length - 1]) {
-            history.push(command);
-            historyIndex = history.length;
         }
     };
 
