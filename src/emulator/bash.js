@@ -13,24 +13,21 @@ function BashEmulator(eventEmitter, colorize = (text) => text) {
         const flags = {};
         const positionalArgs = [];
 
-        let currentFlag = null;
         args.forEach(arg => {
             if (arg.startsWith('--')) {
                 const [flag, value] = arg.split('=');
                 flags[flag] = value !== undefined ? value : true;
-                currentFlag = flag;
             }
             else if (arg.startsWith('-')) {
                 arg.slice(1).split('').forEach(flagChar => {
                     flags[`-${flagChar}`] = true;
                 });
-                currentFlag = `-${arg.slice(1)}`;
             }
             else {
                 positionalArgs.push(arg);
-                currentFlag = null;
             }
         });
+        console.log(flags, positionalArgs);
         return { flags, positionalArgs };
     };
 
