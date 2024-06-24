@@ -3,8 +3,8 @@ import { CommandRegistry } from './commands.js';
 
 
 function BashEmulator(eventEmitter, colorize = (text) => text) {
-    const fileSystem = FileSystem();
-    const commandRegistry = CommandRegistry(fileSystem);
+    const fileSystem = FileSystem(colorize);
+    const commandRegistry = CommandRegistry(fileSystem, colorize);
     const history = [];
     let historyIndex = 0;
 

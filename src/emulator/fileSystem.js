@@ -92,7 +92,7 @@ function File(name, content = '', permissions = '-rw-r--r--') {
 }
 
 
-function FileSystem() {
+function FileSystem(colorize = (text) => text) {
     const homeDirectory = '/home/wizard';
     let currentDirectory = `${homeDirectory}/Dungeon`;
     let previousDirectory = currentDirectory;
@@ -167,7 +167,10 @@ function FileSystem() {
             else if (item.getType() === 'file') {
                 return item.getName();
             }
-            return item.getContents().map(item => item.getName()).join(' ');
+            return item.getContents().map(item => {
+                const entry = item.getName()
+                return item.getType() === 'directory' ? colorize(entry, 'bold', 'blue') : entry;
+            }).join('  ');
         },
         'cannot access'
     );

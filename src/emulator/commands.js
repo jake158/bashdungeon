@@ -1,6 +1,6 @@
 
 
-function CommandRegistry(fileSystem) {
+function CommandRegistry(fileSystem, colorize = (text) => text) {
 
     const parseArgs = (args) => {
         const flags = {};
