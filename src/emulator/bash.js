@@ -43,6 +43,10 @@ function BashEmulator(eventEmitter, colorize = (text) => text) {
                 case ';':
                     result = executeCommand(commands[i]);
                     break;
+                case '||':
+                    if (!result.stderr) { break pipeline; }
+                    result = executeCommand(commands[i]);
+                    break
                 case '&&':
                     if (result.stderr) { break pipeline; }
                     result = executeCommand(commands[i]);
@@ -76,9 +80,6 @@ function BashEmulator(eventEmitter, colorize = (text) => text) {
     };
 
     const historyUp = () => {
-        // TODO: Bash remembers what was in buffer
-        // E.g. type "test", press UpArrow, DownArrow
-        // Result is "test"
         if (historyIndex > 0) {
             historyIndex--;
             return history[historyIndex];
@@ -96,7 +97,7 @@ function BashEmulator(eventEmitter, colorize = (text) => text) {
         }
     };
 
-    const autocomplete = (input) => {
+    const tabComplete = (input) => {
         // TODO: Implement
         return input;
     };
@@ -113,7 +114,7 @@ function BashEmulator(eventEmitter, colorize = (text) => text) {
         execute,
         historyUp,
         historyDown,
-        autocomplete,
+        tabComplete,
         getPrompt
     };
 }

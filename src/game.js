@@ -22,7 +22,11 @@ function Game() {
     const eventEmitter = EventEmitter();
     const bash = BashEmulator(eventEmitter, colorize);
     let commandBuffer = '';
+    let cursorRow = 0;
 
+    // This does not work
+    // When cursor reaches x=0 on line, it doesn't go up a line
+    // I am very tired of this terminal so I will ignore it for now
     const clearInput = () => {
         for (let i = 0; i < commandBuffer.length; i++) {
             terminal.write('\b \b');
@@ -35,21 +39,29 @@ function Game() {
             case '\r':
                 const result = bash.execute(commandBuffer);
                 print(terminal, result);
-                commandBuffer = '';
                 print(terminal, bash.getPrompt());
+                commandBuffer = '';
+                cursorRow = 0;
                 break;
 
             // Backspace
             case '\u007F':
-                if (commandBuffer.length > 0) {
+                if (commandBuffer.length > 0 && terminal.buffer.active.cursorX != 0) {
                     commandBuffer = commandBuffer.slice(0, -1);
                     terminal.write('\b \b');
+                }
+                else if (terminal.buffer.active.cursorX == 0) {
+                    commandBuffer = commandBuffer.slice(0, -1);
+                    terminal.write('\x1b[A');
+                    terminal.write(`\x1b[${terminal.cols}C`);
+                    terminal.write('\b \b');
+                    cursorRow--;
                 }
                 break;
 
             // Tab
             case '\t':
-                const completion = bash.autocomplete(commandBuffer);
+                const completion = bash.tabComplete(commandBuffer);
                 if (completion) {
                     clearInput();
                     commandBuffer = completion;
@@ -83,6 +95,11 @@ function Game() {
                 break;
 
             default:
+                if (terminal.buffer.active.cursorX === terminal.cols - 1) {
+                    cursorRow += 1;
+                    terminal.write('\x1b[B');
+                    terminal.write('\x1b[1000D');
+                }
                 commandBuffer += e;
                 terminal.write(e);
         }
