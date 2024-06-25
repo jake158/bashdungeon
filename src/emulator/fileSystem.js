@@ -101,8 +101,10 @@ function FileSystem(colorize = (text) => text) {
         Dir('home', [
             Dir('wizard', [
                 Dir('Dungeon', [
-                    File('file1.txt'),
-                    File('file2.txt'),
+                    File('file1.txt', 'Content of file1.txt'),
+                    File('emptyfile.txt'),
+                    File('test.txt', 'Content of test.txt'),
+                    File('unreadable.txt', 'Unreadable', '--wx------'),
                     Dir('noexecute', [], 'drw-------'),
                     Dir('noread', [], 'd-wx------')
                 ])
@@ -155,6 +157,19 @@ function FileSystem(colorize = (text) => text) {
         };
     };
 
+
+    const getFileContent = chainErrors(
+        (path) => {
+            const item = getItem(evaluatePath(path));
+            if (!item) {
+                throw new Error('No such file or directory');
+            }
+            else if (item.getType() === 'directory') {
+                throw new Error('Is a directory');
+            }
+            return item.getContent();
+        }
+    );
 
     const ls = chainErrors(
         (path) => {
@@ -243,6 +258,7 @@ function FileSystem(colorize = (text) => text) {
     return {
         getHomeDirectory: () => homeDirectory,
         pwd: () => currentDirectory,
+        getFileContent,
         ls,
         cd,
         mkdir,

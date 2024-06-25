@@ -168,13 +168,16 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
         ),
 
         'cat': command(
-            // Implement
             'cat',
             (stdin, args, flagMap) => {
                 if (args.length === 0) {
                     return stdin;
                 }
-                return '';
+                let output = '';
+                args.forEach(arg => {
+                    output += fileSystem.getFileContent(arg) + '\n';
+                });
+                return output.trim();
             }
         ),
     };
