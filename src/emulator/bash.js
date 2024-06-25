@@ -63,8 +63,11 @@ function BashEmulator(eventEmitter, colorize = (text) => text) {
                     outputStream.push(`${operators[i]}: operator not implemented`);
                     break pipeline;
             }
-            if (result.stderr || result.stdout) {
-                outputStream.push(result.stderr ? result.stderr : result.stdout);
+            if (result.stderr) {
+                outputStream.push(result.stderr);
+            }
+            if (result.stdout) {
+                outputStream.push(result.stdout);
             }
         }
         return outputStream;
@@ -76,6 +79,7 @@ function BashEmulator(eventEmitter, colorize = (text) => text) {
         }
         pushToHistory(input);
         const outputStream = parseAndExecute(input);
+        console.log(outputStream);
         return outputStream.join('\n');
     };
 

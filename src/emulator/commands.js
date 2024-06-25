@@ -2,7 +2,7 @@
 
 function CommandRegistry(fileSystem, colorize = (text) => text) {
 
-    const defaultParseArgs = (args) => {
+    const parseArgs = (args) => {
         const flags = [];
         const positionalArgs = [];
 
@@ -15,6 +15,9 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
                 positionalArgs.push(arg);
             }
         });
+
+        // TODO:
+        // Why not just have an ordered array where duplicates are removed?
 
         // Map preserves flag order
         const flagMap = flags.reduce((acc, flag) => {
@@ -32,17 +35,33 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
         return { positionalArgs, flagMap };
     };
 
-    const command = (name, func, acceptedFlags = [], customParser = null) => {
+    const command = (name, func, acceptedFlags = [], acceptsMultipleArgs = false) => {
         return function (args, stdin) {
             try {
-                const { positionalArgs, flagMap } = customParser ? customParser(args) : defaultParseArgs(args);
+                const { positionalArgs, flagMap } = parseArgs(args);
 
                 for (const [flag, _] of flagMap.entries()) {
                     if (!acceptedFlags.includes(flag)) {
                         throw new Error(`${flag}: unrecognized option`);
                     }
                 }
-                return { stdin: '', stdout: func(stdin, positionalArgs, flagMap), stderr: '' };
+
+                if (acceptsMultipleArgs && positionalArgs.length > 1) {
+                    let stdout = '';
+                    let stderr = '';
+
+                    positionalArgs.forEach(arg => {
+                        try {
+                            stdout += func(stdin, [arg], flagMap, true);
+                        } catch (error) {
+                            stderr += `${name}: ${error.message}\n`;
+                        }
+                    });
+
+                    return { stdin: '', stdout: stdout.trim(), stderr: stderr.trim() };
+                } else {
+                    return { stdin: '', stdout: func(stdin, positionalArgs, flagMap), stderr: '' };
+                }
             } catch (error) {
                 return { stdin: '', stdout: '', stderr: `${name}: ${error.message}` };
             }
@@ -54,8 +73,6 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
     // Flexible flag parser with specified structure for each command that requires it
 
     // 2. Cleaner multiple positional args evaluation
-    // If one directory permission denies ls, the other still gets printed
-    // Commands need to be called separately for each positionalArg, when multiple are allowed
 
     // 3. Improve wrapper: --help entry for each command
 
@@ -111,22 +128,19 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
 
         'ls': command(
             'ls',
-            (stdin, args, flagMap) => {
+            (stdin, args, flagMap, multipleArgsMode = false) => {
                 if (args.length === 0) {
                     return fileSystem.ls('.');
                 }
-                else if (args.length === 1) {
+                else if (!multipleArgsMode) {
                     return fileSystem.ls(args[0]);
                 }
                 else {
-                    let output = '';
-                    args.forEach(arg => {
-                        output += `${arg.replace('~', fileSystem.getHomeDirectory())}:\n${fileSystem.ls(arg)}\n\n`;
-                    });
-                    return output.trim();
+                    return `${args[0].replace('~', fileSystem.getHomeDirectory())}:\n${fileSystem.ls(args[0])}\n\n`;
                 }
             },
-            ['-l', '-a']
+            ['-l', '-a'],
+            true
         ),
 
         'cd': command(
@@ -147,11 +161,11 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
                 if (args.length < 1) {
                     throw new Error('missing operand');
                 }
-                args.forEach(arg => {
-                    fileSystem.mkdir(arg);
-                });
+                fileSystem.mkdir(args[0]);
                 return '';
-            }
+            },
+            [],
+            true
         ),
 
         'rmdir': command(
@@ -160,25 +174,25 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
                 if (args.length < 1) {
                     throw new Error('missing operand');
                 }
-                args.forEach(arg => {
-                    fileSystem.rmdir(arg);
-                });
+                fileSystem.rmdir(args[0]);
                 return '';
-            }
+            },
+            [],
+            true
         ),
 
         'cat': command(
             'cat',
-            (stdin, args, flagMap) => {
+            (stdin, args, flagMap, multipleArgsMode = false) => {
                 if (args.length === 0) {
                     return stdin;
                 }
-                let output = '';
-                args.forEach(arg => {
-                    output += fileSystem.getFileContent(arg) + '\n';
-                });
-                return output.trim();
-            }
+                let output = fileSystem.getFileContent(args[0]);
+                output += multipleArgsMode && output ? '\n' : '';
+                return output;
+            },
+            [],
+            true
         ),
     };
 
