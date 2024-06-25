@@ -52,7 +52,7 @@ function BashEmulator(eventEmitter, colorize = (text) => text) {
                     result = executeCommand(commands[i]);
                     break
                 case '|':
-                    outputStream.pop();
+                    !result.stderr ? outputStream.pop() : '';
                     result = executeCommand(commands[i], result.stdout);
                     break;
                 case '2>':

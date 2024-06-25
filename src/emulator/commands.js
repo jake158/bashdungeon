@@ -47,6 +47,19 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
 
     // 3. Improve wrapper: --help entry for each command
 
+    const processEscapeSequences = (input) => {
+        return input.replace(/\\n/g, '\n')
+            .replace(/\\t/g, '\t')
+            .replace(/\\r/g, '\r')
+            .replace(/\\f/g, '\f')
+            .replace(/\\b/g, '\b')
+            .replace(/\\v/g, '\v')
+            .replace(/\\'/g, "'")
+            .replace(/\\"/g, '"')
+            .replace(/\\\\/g, '\\');
+    }
+
+
     const commands = {
 
         'clear': command(
@@ -62,6 +75,27 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
             (stdin, args, flags) => {
                 return fileSystem.pwd();
             }
+        ),
+
+        'echo': command(
+            'echo',
+            (stdin, args, flags) => {
+                console.log(flags);
+                let str = args.map(arg => arg.replace(/['"]/g, '')).join(' ') || ' ';
+                let processEscapes = false;
+
+                for (let flag of Object.keys(flags)) {
+                    switch (flag) {
+                        case '-e':
+                            processEscapes = true;
+                            break;
+                        case '-E':
+                            processEscapes = false;
+                    }
+                }
+                return processEscapes ? processEscapeSequences(str) : str;
+            },
+            ['-e', '-E']
         ),
 
         'ls': command(
@@ -126,7 +160,10 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
             // Implement
             'cat',
             (stdin, args, flags) => {
-                return stdin;
+                if (args.length === 0) {
+                    return stdin;
+                }
+                return '';
             }
         ),
     };
