@@ -1,91 +1,7 @@
+import { parseArgs } from './argParser.js';
 
 
 function CommandRegistry(fileSystem, colorize = (text) => text) {
-
-    const parseArgs = (args, flags) => {
-        const flagMap = new Map();
-        const positionalArgs = [];
-
-        const processQuotes = (str) => {
-            if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
-                return str.slice(1, -1);
-            }
-            return str.replace(/\\(?!\\)/g, '');
-        };
-
-        const handleLongFlag = (arg, index) => {
-            let [flag, value] = arg.split('=');
-
-            if (!flags[flag]) {
-                throw new Error(`unrecognized option ${flag}`);
-            }
-            if (flags[flag] === 'argument' && !value) {
-                value = args.length > index + 1 ? args[index + 1] : null;
-                index++;
-                if (!value) throw new Error(`option requires an argument -- '${flag}'`);
-            }
-            else if (flags[flag] === 'regular' && value) {
-                throw new Error(`option '${flag}' doesn't allow an argument`);
-            }
-
-            if (flags[flag] === 'argument') {
-                if (!flagMap.has(flag)) {
-                    flagMap.set(flag, []);
-                }
-                flagMap.get(flag).push(processQuotes(value));
-            } else {
-                flagMap.set(flag, true);
-            }
-            return index;
-        };
-
-        const handleShortFlag = (arg, index) => {
-            let remainder = arg;
-
-            while (remainder) {
-                const flag = Object.keys(flags).find(f => remainder.startsWith(f));
-                if (!flag) {
-                    throw new Error(`unrecognized option -- '${remainder.slice(1, 2)}'`);
-                }
-                remainder = remainder.slice(flag.length);
-
-                if (flags[flag] === 'argument') {
-                    let optArg = remainder;
-                    if (!remainder) {
-                        optArg = args.length > index + 1 ? args[index + 1] : null;
-                        index++;
-                    }
-                    if (!optArg) {
-                        throw new Error(`option requires an argument -- '${flag.slice(1)}'`);
-                    }
-                    if (!flagMap.has(flag)) {
-                        flagMap.set(flag, []);
-                    }
-                    flagMap.get(flag).push(processQuotes(optArg));
-                    break;
-                } else {
-                    remainder = remainder ? '-' + remainder : null;
-                    flagMap.delete(flag);
-                    flagMap.set(flag, true);
-                }
-            }
-            return index;
-        };
-
-        for (let i = 0; i < args.length; i++) {
-            let arg = processQuotes(args[i]);
-
-            if (arg.startsWith('--') && arg.length > 2) {
-                i = handleLongFlag(arg, i);
-            } else if (arg.startsWith('-') && !arg.startsWith('--') && arg.length > 1) {
-                i = handleShortFlag(arg, i);
-            } else {
-                positionalArgs.push(arg);
-            }
-        }
-        return { positionalArgs, flagMap };
-    };
-
 
     const popDestinationArg = (positionalArgs, flagMap, destinationArgs) => {
         let dest = null;
@@ -307,7 +223,7 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
 
         'cat': command(
             (stdin, arg, flagMap, multipleArgsMode = false) => {
-                if (arg.length === 0) {
+                if (!arg) {
                     return stdin;
                 }
                 let output = fileSystem.getFileContent(arg);
