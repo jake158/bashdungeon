@@ -3,65 +3,50 @@
 function CommandRegistry(fileSystem, colorize = (text) => text) {
 
     const parseArgs = (args) => {
-        const flags = [];
+        const flagMap = new Map();
         const positionalArgs = [];
 
         args.forEach(arg => {
             if (arg.startsWith('--') && arg.length > 2) {
-                flags.push(arg.split('='));
+                const [flag, value] = arg.split('=');
+                flagMap.delete(flag);
+                flagMap.set(flag, value ? value : true);
             } else if (arg.startsWith('-') && !arg.startsWith('--') && arg.length > 1) {
-                arg.slice(1).split('').forEach(flagChar => { flags.push(`-${flagChar}`); });
+                arg.slice(1).split('').forEach(flagChar => { flagMap.delete(`-${flagChar}`); flagMap.set(`-${flagChar}`, true); });
             } else {
                 positionalArgs.push(arg);
             }
         });
-
-        // TODO:
-        // Why not just have an ordered array where duplicates are removed?
-
-        // Map preserves flag order
-        const flagMap = flags.reduce((acc, flag) => {
-            if (flag instanceof Array) {
-                acc.delete(flag[0]);
-                acc.set(flag[0], flag[1] ? flag[1] : true);
-            }
-            else {
-                acc.delete(flag);
-                acc.set(flag, true);
-            }
-            return acc;
-        }, new Map());
 
         return { positionalArgs, flagMap };
     };
 
     const command = (name, func, acceptedFlags = [], acceptsMultipleArgs = false) => {
         return function (args, stdin) {
-            try {
-                const { positionalArgs, flagMap } = parseArgs(args);
+            const { positionalArgs, flagMap } = parseArgs(args);
 
-                for (const [flag, _] of flagMap.entries()) {
-                    if (!acceptedFlags.includes(flag)) {
-                        throw new Error(`${flag}: unrecognized option`);
+            for (const [flag, _] of flagMap.entries()) {
+                if (!acceptedFlags.includes(flag)) {
+                    return { stdin: '', stdout: '', stderr: `${name}: ${flag}: unrecognized option` }
+                }
+            }
+
+            if (acceptsMultipleArgs && positionalArgs.length > 1) {
+                let stdout = '';
+                let stderr = '';
+
+                positionalArgs.forEach(arg => {
+                    try {
+                        stdout += func(stdin, [arg], flagMap, true);
+                    } catch (error) {
+                        stderr += `${name}: ${error.message}\n`;
                     }
-                }
+                });
+                return { stdin: '', stdout: stdout.trim(), stderr: stderr.trim() };
+            }
 
-                if (acceptsMultipleArgs && positionalArgs.length > 1) {
-                    let stdout = '';
-                    let stderr = '';
-
-                    positionalArgs.forEach(arg => {
-                        try {
-                            stdout += func(stdin, [arg], flagMap, true);
-                        } catch (error) {
-                            stderr += `${name}: ${error.message}\n`;
-                        }
-                    });
-
-                    return { stdin: '', stdout: stdout.trim(), stderr: stderr.trim() };
-                } else {
-                    return { stdin: '', stdout: func(stdin, positionalArgs, flagMap), stderr: '' };
-                }
+            try {
+                return { stdin: '', stdout: func(stdin, positionalArgs, flagMap), stderr: '' };
             } catch (error) {
                 return { stdin: '', stdout: '', stderr: `${name}: ${error.message}` };
             }
