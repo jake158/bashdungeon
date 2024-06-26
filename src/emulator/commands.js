@@ -6,43 +6,106 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
         const flagMap = new Map();
         const positionalArgs = [];
 
-        args.forEach(arg => {
+        for (let arg of args) {
+
             if (arg.startsWith('--') && arg.length > 2) {
                 const [flag, value] = arg.split('=');
                 flagMap.delete(flag);
                 flagMap.set(flag, value ? value : true);
-            } else if (arg.startsWith('-') && !arg.startsWith('--') && arg.length > 1) {
+            }
+
+            else if (arg.startsWith('-') && !arg.startsWith('--') && arg.length > 1) {
                 arg.slice(1).split('').forEach(flagChar => { flagMap.delete(`-${flagChar}`); flagMap.set(`-${flagChar}`, true); });
-            } else {
+            }
+
+            else {
+                // Unquoted arguments treat \ as an escape character
+                arg = arg.startsWith('"') && arg.endsWith('"') || arg.startsWith("'") && arg.endsWith("'")
+                    ? arg.slice(1, -1)
+                    : arg.replace(/\\(?!\\)/g, '');
                 positionalArgs.push(arg);
             }
-        });
-
+        }
         return { positionalArgs, flagMap };
     };
 
-    const command = (name, func, acceptedFlags = [], acceptsMultipleArgs = false) => {
+
+    const popDestinationArg = (positionalArgs, flagMap, destinationArgs) => {
+        let dest = null;
+
+        for (let destArg of destinationArgs) {
+            if (typeof destArg === 'string' && flagMap.has(destArg)) {
+                dest = flagMap.get(destArg);
+                break;
+            }
+            else if (typeof destArg === 'number' && positionalArgs.length > Math.abs(destArg)) {
+                dest = destArg < 0 ? positionalArgs[positionalArgs.length + destArg] : positionalArgs[destArg];
+                positionalArgs.splice((destArg < 0) ? (positionalArgs.length + destArg) : destArg, 1);
+                break;
+            }
+        }
+        return dest;
+    };
+
+
+    const executeMultipleArgs = (func, stdin, positionalArgs, flagMap, name, destinationArgs = null) => {
+        const dest = destinationArgs ? popDestinationArg(positionalArgs, flagMap, destinationArgs) : null;
+
+        if (destinationArgs && !dest || destinationArgs && positionalArgs.length === 0) {
+            const error = positionalArgs.length > 0 ? `missing destination operand after '${positionalArgs.pop()}'` : 'missing operand';
+            return { stdin: '', stdout: '', stderr: `${name}: ${error}` };
+        }
+
+        let stdout = '';
+        let stderr = '';
+        if (positionalArgs.length === 0) { positionalArgs.push(null); }
+
+        for (let arg of positionalArgs) {
+            try {
+                stdout += func(
+                    stdin,
+                    destinationArgs ? [arg, dest] : arg,
+                    flagMap,
+                    positionalArgs.length > 1 ? true : false
+                );
+            }
+            catch (error) {
+                stderr += `${name}: ${error.message}\n`;
+            }
+        }
+        return { stdin: '', stdout: stdout.trim(), stderr: stderr.trim() };
+    };
+
+
+    const command = (func, settings = {}) => {
+        const {
+            name = 'unnamed command',
+            flags = [],
+            callForEachArg = false,
+            destinationArgLocations = null
+        } = settings;
+
         return function (args, stdin) {
-            const { positionalArgs, flagMap } = parseArgs(args);
+            const {
+                positionalArgs,
+                flagMap
+            } = parseArgs(args);
 
             for (const [flag, _] of flagMap.entries()) {
-                if (!acceptedFlags.includes(flag)) {
+                if (!flags.includes(flag)) {
                     return { stdin: '', stdout: '', stderr: `${name}: ${flag}: unrecognized option` }
                 }
             }
 
-            if (acceptsMultipleArgs && positionalArgs.length > 1) {
-                let stdout = '';
-                let stderr = '';
-
-                positionalArgs.forEach(arg => {
-                    try {
-                        stdout += func(stdin, [arg], flagMap, true);
-                    } catch (error) {
-                        stderr += `${name}: ${error.message}\n`;
-                    }
-                });
-                return { stdin: '', stdout: stdout.trim(), stderr: stderr.trim() };
+            if (callForEachArg) {
+                return executeMultipleArgs(
+                    func,
+                    stdin,
+                    positionalArgs,
+                    flagMap,
+                    name,
+                    destinationArgLocations
+                );
             }
 
             try {
@@ -55,11 +118,11 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
 
     // TODO:
     // 1. Each command parses flags differently, e.g. `cut -d , -f 2 animals.csv`, `find /home -name puppies.jpg`
-    // Flexible flag parser with specified structure for each command that requires it
+    // parseArgs needs additional info passed which specifies which flags require an argument
 
-    // 2. Cleaner multiple positional args evaluation
+    // 2. Improve wrapper: --help entry for each command
 
-    // 3. Improve wrapper: --help entry for each command
+    // 3. Cleaning, refactoring
 
     const processEscapeSequences = (input) => {
         return input.replace(/\\n/g, '\n')
@@ -76,25 +139,52 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
 
     const commands = {
 
+        // These commands take no positional arguments
+
         'clear': command(
             // Handled by terminal using eventEmitter
-            'clear',
-            (stdin, args, flagMap) => {
+            () => {
                 return '';
+            },
+
+            {
+                name: 'clear'
             }
         ),
 
         'pwd': command(
-            'pwd',
-            (stdin, args, flagMap) => {
+            () => {
                 return fileSystem.pwd();
+            },
+
+            {
+                name: 'pwd'
             }
         ),
 
-        'echo': command(
-            'echo',
+
+        // These commands take a fixed number of positional arguments
+
+        'cd': command(
             (stdin, args, flagMap) => {
-                let str = args.map(arg => arg.replace(/['"]/g, '')).join(' ') || ' ';
+                if (args.length > 1) {
+                    throw new Error('too many arguments');
+                }
+                const path = args.length === 1 ? args[0] : '~';
+                fileSystem.cd(path);
+                return '';
+            },
+
+            {
+                name: 'bash: cd',
+            }
+        ),
+
+
+        // These commands take any number of positional arguments
+
+        'echo': command(
+            (stdin, arg, flagMap) => {
                 let processEscapes = false;
 
                 for (const [flag, _] of flagMap.entries()) {
@@ -106,78 +196,99 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
                             processEscapes = false;
                     }
                 }
-                return processEscapes ? processEscapeSequences(str) : str;
-            },
-            ['-e', '-E']
-        ),
 
-        'ls': command(
-            'ls',
-            (stdin, args, flagMap, multipleArgsMode = false) => {
-                if (args.length === 0) {
-                    return fileSystem.ls('.');
-                }
-                else if (!multipleArgsMode) {
-                    return fileSystem.ls(args[0]);
-                }
-                else {
-                    return `${args[0].replace('~', fileSystem.getHomeDirectory())}:\n${fileSystem.ls(args[0])}\n\n`;
-                }
+                const str = arg ? arg : ' ';
+                return processEscapes ? processEscapeSequences(str) + ' ' : str + ' ';
             },
-            ['-l', '-a'],
-            true
-        ),
 
-        'cd': command(
-            'bash: cd',
-            (stdin, args, flagMap) => {
-                if (args.length > 1) {
-                    throw new Error('too many arguments');
-                }
-                const path = args.length === 1 ? args[0] : '~';
-                fileSystem.cd(path);
-                return '';
+            {
+                name: 'echo',
+                flags: ['-e', '-E'],
+                callForEachArg: true
             }
         ),
 
         'mkdir': command(
-            'mkdir',
-            (stdin, args, flagMap) => {
-                if (args.length < 1) {
+            (stdin, arg, flagMap) => {
+                if (!arg) {
                     throw new Error('missing operand');
                 }
-                fileSystem.mkdir(args[0]);
+                fileSystem.mkdir(arg);
                 return '';
             },
-            [],
-            true
+
+            {
+                name: 'mkdir',
+                callForEachArg: true
+            }
         ),
 
         'rmdir': command(
-            'rmdir',
-            (stdin, args, flagMap) => {
-                if (args.length < 1) {
+            (stdin, arg, flagMap) => {
+                if (!arg) {
                     throw new Error('missing operand');
                 }
-                fileSystem.rmdir(args[0]);
+                fileSystem.rmdir(arg);
                 return '';
             },
-            [],
-            true
+
+            {
+                name: 'rmdir',
+                callForEachArg: true
+            }
+        ),
+
+        'ls': command(
+            (stdin, arg, flagMap, multipleArgsMode = false) => {
+                if (!arg) {
+                    return fileSystem.ls('.');
+                }
+                else if (!multipleArgsMode) {
+                    return fileSystem.ls(arg);
+                }
+                else {
+                    return `${arg.replace('~', fileSystem.getHomeDirectory())}:\n${fileSystem.ls(arg)}\n\n`;
+                }
+            },
+
+            {
+                name: 'ls',
+                flags: ['-l', '-a'],
+                callForEachArg: true
+            }
         ),
 
         'cat': command(
-            'cat',
-            (stdin, args, flagMap, multipleArgsMode = false) => {
-                if (args.length === 0) {
+            (stdin, arg, flagMap, multipleArgsMode = false) => {
+                if (arg.length === 0) {
                     return stdin;
                 }
-                let output = fileSystem.getFileContent(args[0]);
+                let output = fileSystem.getFileContent(arg);
                 output += multipleArgsMode && output ? '\n' : '';
                 return output;
             },
-            [],
-            true
+
+            {
+                name: 'cat',
+                callForEachArg: true
+            }
+        ),
+
+        'mv': command(
+            // Implement
+            (stdin, args, flagMap) => {
+                const [source, dest] = args;
+                console.log("Source:", source);
+                console.log("Destination:", dest);
+                return '';
+            },
+
+            {
+                name: 'mv',
+                flags: ['-t'],
+                callForEachArg: true,
+                destinationArgLocations: ['-t', -1]
+            }
         ),
     };
 

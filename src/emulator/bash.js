@@ -79,7 +79,6 @@ function BashEmulator(eventEmitter, colorize = (text) => text) {
         }
         pushToHistory(input);
         const outputStream = parseAndExecute(input);
-        console.log(outputStream);
         return outputStream.join('\n');
     };
 
