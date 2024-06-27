@@ -22,10 +22,10 @@ function Dir(name, contents = [], permissions = 'drwxr-xr-x') {
         return _contents.find(item => item.getName() === name);
     };
 
-    const removeItem = (item) => {
+    const removeItemByName = (name) => {
         checkPermissions('write');
 
-        const index = _contents.indexOf(item);
+        const index = _contents.findIndex(item => item.getName() === name);
         if (index !== -1) {
             _contents.splice(index, 1);
             return '';
@@ -49,7 +49,7 @@ function Dir(name, contents = [], permissions = 'drwxr-xr-x') {
             _contents.push(item);
         },
         findItemByName,
-        removeItem
+        removeItemByName
     };
 }
 
@@ -269,9 +269,85 @@ function FileSystem() {
             }
 
             const parentDirectory = getItem(absolutePath.substring(0, sep));
-            parentDirectory.removeItem(directory);
+            parentDirectory.removeItemByName(directory.getName());
         },
         'failed to remove'
+    );
+
+
+    const _copyItem = (sourceItem, destPath) => {
+        // Dirty, clean
+        if (!sourceItem) {
+            throw new Error('No such file or directory');
+        }
+
+        let destDir;
+        let destFileName;
+        const itemAtPath = getItem(destPath);
+
+        if (itemAtPath && itemAtPath.getType() === 'directory') {
+            destDir = itemAtPath;
+            destFileName = sourceItem.getName();
+        } else {
+            const destDirPath = destPath.lastIndexOf('/') === -1 ? currentDirectory : destPath.substring(0, destPath.lastIndexOf('/'));
+            destDir = getItem(destDirPath);
+            destFileName = destPath.substring(destPath.lastIndexOf('/') + 1);
+        }
+
+        if (!destDir) {
+            throw new Error('Destination directory does not exist');
+        }
+        if (destDir.getType() !== 'directory') {
+            throw new Error('Destination is not a directory');
+        }
+
+        const destItem = destDir.findItemByName(destFileName);
+        if (destItem) { destDir.removeItemByName(destFileName); }
+
+        const newItem = sourceItem.getType() === 'file'
+            ? File(
+                destFileName,
+                sourceItem.getContent(),
+                sourceItem.getPermissions())
+            : Dir(
+                destFileName,
+                sourceItem.getContents().map(item => {
+                    if (item.getType() === 'file') { return File(item.getName(), item.getContent(), item.getPermissions()); }
+                    else { return Dir(item.getName(), item.getContents(), item.getPermissions()); }
+                }),
+                sourceItem.getPermissions());
+
+        destDir.addItem(newItem);
+    };
+
+    // Should not let modify root /
+
+    const cp = chainErrors(
+        (source, dest) => {
+            const sourcePath = evaluatePath(source);
+            const destPath = evaluatePath(dest);
+            // Improve this check
+            if (sourcePath === destPath) { return; }
+            const sourceItem = getItem(sourcePath);
+            _copyItem(sourceItem, destPath);
+        },
+        'cannot copy'
+    );
+
+    const mv = chainErrors(
+        // mv should be able to move unreadable files
+        (source, dest) => {
+            const sourcePath = evaluatePath(source);
+            const destPath = evaluatePath(dest);
+            // Improve this check
+            if (sourcePath === destPath) { return; }
+            const sourceDir = getItem(sourcePath.substring(0, sourcePath.lastIndexOf('/')));
+            const sourceItem = getItem(sourcePath);
+            _copyItem(sourceItem, destPath);
+            // mv file1.txt ~/Dungeon => gets removed here
+            sourceDir.removeItemByName(sourceItem.getName());
+        },
+        'cannot move'
     );
 
 
@@ -283,7 +359,9 @@ function FileSystem() {
         ls,
         cd,
         mkdir,
-        rmdir
+        rmdir,
+        cp,
+        mv
     };
 }
 

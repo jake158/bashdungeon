@@ -254,11 +254,29 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
             }
         ),
 
-        'mv': command(
-            // Implement
+        'cp': command(
+            // Implement: merging -t and --target-directory arrays?
             (stdin, [source, dest], flagMap) => {
                 if (Array.isArray(dest)) throw new Error('multiple target directories specified');
-                // fileSystem.mv(source, dest);
+                fileSystem.cp(source, dest);
+                return '';
+            },
+
+            {
+                name: 'cp',
+                flags: {
+                    '-t': 'argument',
+                    '--target-directory': 'argument',
+                },
+                callForEachArg: true,
+                destinationArgLocations: ['-t', '--target-directory', -1]
+            }
+        ),
+
+        'mv': command(
+            (stdin, [source, dest], flagMap) => {
+                if (Array.isArray(dest)) throw new Error('multiple target directories specified');
+                fileSystem.mv(source, dest);
                 return '';
             },
 
