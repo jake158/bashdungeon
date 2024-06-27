@@ -2,7 +2,7 @@ import { FileSystem } from './fileSystem.js';
 import { CommandRegistry } from './commands.js';
 
 function BashEmulator(eventEmitter, colorize = (text) => text) {
-    const fileSystem = FileSystem(colorize);
+    const fileSystem = FileSystem();
     const commandRegistry = CommandRegistry(fileSystem, colorize);
     const history = [];
     let historyIndex = 0;
@@ -107,7 +107,7 @@ function BashEmulator(eventEmitter, colorize = (text) => text) {
 
     const getPrompt = () => {
         const userAtHost = 'wizard@dungeon';
-        const currentDirectory = fileSystem.pwd();
+        const currentDirectory = fileSystem.getCurrentDirectory();
         const displayDirectory = currentDirectory.replace(fileSystem.getHomeDirectory(), '~');
         return `${colorize(userAtHost, 'bold', 'green')}:${colorize(displayDirectory, 'bold', 'blue')}$ `;
     };

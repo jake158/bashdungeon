@@ -9,6 +9,7 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
         for (let destArg of destinationArgs) {
             if (typeof destArg === 'string' && flagMap.has(destArg)) {
                 dest = flagMap.get(destArg);
+                dest = dest.length === 1 ? dest[0] : dest;
                 break;
             }
             else if (typeof destArg === 'number' && positionalArgs.length > Math.abs(destArg)) {
@@ -21,7 +22,7 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
     };
 
 
-    const executeMultipleArgs = (func, stdin, positionalArgs, flagMap, name, destinationArgs = null) => {
+    const executeMultipleArgs = (func, stdin, positionalArgs, flagMap, name, destinationArgs, sortArgs) => {
         const dest = destinationArgs ? popDestinationArg(positionalArgs, flagMap, destinationArgs) : null;
 
         if (destinationArgs && !dest || destinationArgs && positionalArgs.length === 0) {
@@ -33,6 +34,7 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
 
         let stdout = '';
         let stderr = '';
+        if (sortArgs) { positionalArgs.sort(sortArgs); }
         if (positionalArgs.length === 0) { positionalArgs.push(null); }
 
         for (let arg of positionalArgs) {
@@ -57,7 +59,8 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
             name = 'unnamed command',
             flags = {},
             callForEachArg = false,
-            destinationArgLocations = null
+            destinationArgLocations = null,
+            sortArgs = null
         } = settings;
 
         return function (args, stdin) {
@@ -74,7 +77,8 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
                         positionalArgs,
                         flagMap,
                         name,
-                        destinationArgLocations
+                        destinationArgLocations,
+                        sortArgs
                     );
                 }
 
@@ -103,7 +107,7 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
         ),
 
         'pwd': command(
-            () => { return fileSystem.pwd(); },
+            () => { return fileSystem.getCurrentDirectory(); },
             { name: 'pwd' }
         ),
 
@@ -198,17 +202,25 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
         ),
 
         'ls': command(
-            // Implement -l, -a handling
+            // Implement -l
             (stdin, arg, flagMap, multipleArgsMode = false) => {
-                if (!arg) {
-                    return fileSystem.ls('.');
+                const long = flagMap.has('-l');
+                const all = flagMap.has('-a');
+                const result = fileSystem.ls(arg ? arg : '.', all);
+
+                const formatResult = (item) => {
+                    const name = item.type === 'directory' ? colorize(item.name, 'bold', 'blue') : item.name;
+                    if (long) { return `${item.permissions} ${name}`; }
+                    else { return name; }
                 }
-                else if (!multipleArgsMode) {
-                    return fileSystem.ls(arg);
+
+                if (!Array.isArray(result)) {
+                    return formatResult(result) + (multipleArgsMode && long ? '\n' : '  ');
                 }
-                else {
-                    return `${arg.replace('~', fileSystem.getHomeDirectory())}:\n${fileSystem.ls(arg)}\n\n`;
-                }
+
+                const output = result.map(formatResult).join(long ? '\n' : '  ');
+                if (!multipleArgsMode) { return output; }
+                return `\n${arg.replace('~', fileSystem.getHomeDirectory())}:\n${output}\n`;
             },
 
             {
@@ -217,7 +229,12 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
                     '-l': 'regular',
                     '-a': 'regular',
                 },
-                callForEachArg: true
+                callForEachArg: true,
+                sortArgs: (a, b) => {
+                    if (fileSystem.isDirectory(a) && !fileSystem.isDirectory(b)) { return 1; }
+                    if (!fileSystem.isDirectory(a) && fileSystem.isDirectory(b)) { return -1; }
+                    return 0;
+                }
             }
         ),
 
@@ -239,11 +256,9 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
 
         'mv': command(
             // Implement
-            (stdin, args, flagMap) => {
-                const [source, destArray] = args;
-                if (destArray.length > 1) throw new Error('multiple target directories specified');
-                console.log("Source:", source);
-                console.log("Destination:", destArray[0]);
+            (stdin, [source, dest], flagMap) => {
+                if (Array.isArray(dest)) throw new Error('multiple target directories specified');
+                // fileSystem.mv(source, dest);
                 return '';
             },
 

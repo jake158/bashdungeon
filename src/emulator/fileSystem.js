@@ -92,7 +92,7 @@ function File(name, content = '', permissions = '-rw-r--r--') {
 }
 
 
-function FileSystem(colorize = (text) => text) {
+function FileSystem() {
     const homeDirectory = '/home/wizard';
     let currentDirectory = `${homeDirectory}/Dungeon`;
     let previousDirectory = currentDirectory;
@@ -103,7 +103,7 @@ function FileSystem(colorize = (text) => text) {
                 Dir('Dungeon', [
                     File('file1.txt', 'Content of file1.txt'),
                     File('emptyfile.txt'),
-                    File('test.txt', 'Content of test.txt'),
+                    File('.test', 'Hidden file contents'),
                     File('unreadable.txt', 'Unreadable', '--wx------'),
                     Dir('noexecute', [], 'drw-------'),
                     Dir('noread', [], 'd-wx------')
@@ -147,6 +147,12 @@ function FileSystem(colorize = (text) => text) {
         return curr;
     };
 
+    const isDirectory = (path) => {
+        const item = getItem(evaluatePath(path));
+        if (!item) return false;
+        return item.getType() === 'directory';
+    }
+
     const chainErrors = (func, message = null) => {
         return function (...args) {
             try {
@@ -172,20 +178,34 @@ function FileSystem(colorize = (text) => text) {
     );
 
     const ls = chainErrors(
-        (path) => {
+        // Implement . .. when -a
+        (path, all = false) => {
             const absolutePath = evaluatePath(path);
             const item = getItem(absolutePath);
+            if (!item) { throw new Error('No such file or directory'); }
 
-            if (!item) {
-                throw new Error('No such file or directory');
+            const constructObject = (item) => ({
+                type: item.getType(),
+                permissions: item.getPermissions(),
+                name: item.getName(),
+            });
+
+            if (item.getType() === 'file') {
+                return constructObject(item);
             }
-            else if (item.getType() === 'file') {
-                return item.getName();
-            }
-            return item.getContents().map(item => {
-                const entry = item.getName()
-                return item.getType() === 'directory' ? colorize(entry, 'bold', 'blue') : entry;
-            }).join('  ');
+
+            const result = all
+                ? item.getContents().map(constructObject)
+                : item.getContents().filter(i => !i.getName().startsWith('.')).map(constructObject);
+
+            return result.sort(
+                (itemA, itemB) => {
+                    if (itemA.type === 'directory' && itemB.type !== 'directory') { return -1; }
+                    if (itemA.type !== 'directory' && itemB.type === 'directory') { return 1; }
+                    const a = itemA.name.toLowerCase();
+                    const b = itemB.name.toLowerCase();
+                    return (a < b) ? -1 : (a > b) ? 1 : 0;
+                });
         },
         'cannot access'
     );
@@ -257,7 +277,8 @@ function FileSystem(colorize = (text) => text) {
 
     return {
         getHomeDirectory: () => homeDirectory,
-        pwd: () => currentDirectory,
+        getCurrentDirectory: () => currentDirectory,
+        isDirectory,
         getFileContent,
         ls,
         cd,
