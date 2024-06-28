@@ -28,9 +28,9 @@ function Dir(name, contents = [], permissions = 'drwxr-xr-x') {
         const index = _contents.findIndex(item => item.getName() === name);
         if (index !== -1) {
             _contents.splice(index, 1);
-            return '';
+            return true;
         } else {
-            throw new Error(`Item ${item.getName()} not found in directory ${_name}`);
+            return false;
         }
     };
 
@@ -44,6 +44,7 @@ function Dir(name, contents = [], permissions = 'drwxr-xr-x') {
             checkPermissions('read');
             return _contents;
         },
+        setName: (name) => _name = name,
         addItem: (item) => {
             checkPermissions('write');
             _contents.push(item);
@@ -80,6 +81,7 @@ function File(name, content = '', permissions = '-rw-r--r--') {
             checkPermissions('read');
             return _content;
         },
+        setName: (name) => _name = name,
         setContent: (content) => {
             checkPermissions('write');
             _content = content;
@@ -106,7 +108,8 @@ function FileSystem() {
                     File('.test', 'Hidden file contents'),
                     File('unreadable.txt', 'Unreadable', '--wx------'),
                     Dir('noexecute', [], 'drw-------'),
-                    Dir('noread', [], 'd-wx------')
+                    Dir('noread', [], 'd-wx------'),
+                    Dir('nowrite', [], 'dr-x------')
                 ])
             ])
         ])
@@ -275,77 +278,76 @@ function FileSystem() {
     );
 
 
-    const _copyItem = (sourceItem, destPath) => {
-        // Dirty, clean
-        if (!sourceItem) {
-            throw new Error('No such file or directory');
-        }
+    const _handleItemMove = (sourcePath, sourceItem, destPath, operation) => {
 
-        let destDir;
-        let destFileName;
+        const getDestinationInfo = (destPath) => {
+            const sep = destPath.lastIndexOf('/');
+            const destDirPath = sep === -1 ? currentDirectory : destPath.substring(0, sep);
+            const destFileName = sep === -1 ? destPath : destPath.substring(sep + 1);
+            const destDir = getItem(destDirPath);
+            return { destDir, destFileName };
+        };
+
         const itemAtPath = getItem(destPath);
-
-        if (itemAtPath && itemAtPath.getType() === 'directory') {
-            destDir = itemAtPath;
-            destFileName = sourceItem.getName();
-        } else {
-            const destDirPath = destPath.lastIndexOf('/') === -1 ? currentDirectory : destPath.substring(0, destPath.lastIndexOf('/'));
-            destDir = getItem(destDirPath);
-            destFileName = destPath.substring(destPath.lastIndexOf('/') + 1);
-        }
+        const { destDir, destFileName } = itemAtPath && itemAtPath.getType() === 'directory'
+            ? { destDir: itemAtPath, destFileName: sourceItem.getName() }
+            : getDestinationInfo(destPath);
 
         if (!destDir) {
-            throw new Error('Destination directory does not exist');
-        }
-        if (destDir.getType() !== 'directory') {
-            throw new Error('Destination is not a directory');
+            throw new Error(`'${destPath}': No such file or directory`);
         }
 
         const destItem = destDir.findItemByName(destFileName);
-        if (destItem) { destDir.removeItemByName(destFileName); }
+        if (destItem) {
+            destDir.removeItemByName(destFileName);
+        }
 
-        const newItem = sourceItem.getType() === 'file'
-            ? File(
-                destFileName,
-                sourceItem.getContent(),
-                sourceItem.getPermissions())
-            : Dir(
-                destFileName,
-                sourceItem.getContents().map(item => {
-                    if (item.getType() === 'file') { return File(item.getName(), item.getContent(), item.getPermissions()); }
-                    else { return Dir(item.getName(), item.getContents(), item.getPermissions()); }
-                }),
-                sourceItem.getPermissions());
+        const copyItem = (item) => item.getType() === 'file'
+            ? File(item.getName(), item.getContent(), item.getPermissions())
+            : Dir(item.getName(), item.getContents().map(copyItem), item.getPermissions());
 
+        const newItem = (operation === 'copy') ? copyItem(sourceItem) : sourceItem;
+        newItem.setName(destFileName);
         destDir.addItem(newItem);
+
+        if (operation === 'move') {
+            const sourceDirPath = sourcePath.substring(0, sourcePath.lastIndexOf('/'));
+            const sourceDir = getItem(sourceDirPath);
+            const sourceItemName = sourceItem.getName();
+            if (sourceDirPath !== destPath || sourceItemName !== destFileName) { sourceDir.removeItemByName(sourceItemName); }
+        }
     };
 
-    // Should not let modify root /
+    // Ensure none of:
+    // Moving directory you are in right now
+    // Tampering with root
 
     const cp = chainErrors(
         (source, dest) => {
             const sourcePath = evaluatePath(source);
             const destPath = evaluatePath(dest);
-            // Improve this check
-            if (sourcePath === destPath) { return; }
+
             const sourceItem = getItem(sourcePath);
-            _copyItem(sourceItem, destPath);
+            if (!sourceItem) {
+                throw new Error('No such file or directory');
+            }
+
+            _handleItemMove(sourcePath, sourceItem, destPath, 'copy');
         },
         'cannot copy'
     );
 
     const mv = chainErrors(
-        // mv should be able to move unreadable files
         (source, dest) => {
             const sourcePath = evaluatePath(source);
             const destPath = evaluatePath(dest);
-            // Improve this check
-            if (sourcePath === destPath) { return; }
-            const sourceDir = getItem(sourcePath.substring(0, sourcePath.lastIndexOf('/')));
+
             const sourceItem = getItem(sourcePath);
-            _copyItem(sourceItem, destPath);
-            // mv file1.txt ~/Dungeon => gets removed here
-            sourceDir.removeItemByName(sourceItem.getName());
+            if (!sourceItem) {
+                throw new Error('No such file or directory');
+            }
+
+            _handleItemMove(sourcePath, sourceItem, destPath, 'move');
         },
         'cannot move'
     );

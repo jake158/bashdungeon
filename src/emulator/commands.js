@@ -258,6 +258,7 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
             // Implement: merging -t and --target-directory arrays?
             (stdin, [source, dest], flagMap) => {
                 if (Array.isArray(dest)) throw new Error('multiple target directories specified');
+                if (!flagMap.has('-r') && fileSystem.isDirectory(source)) { throw new Error(`-r not specified; omitting directory '${source}'`); }
                 fileSystem.cp(source, dest);
                 return '';
             },
@@ -267,6 +268,7 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
                 flags: {
                     '-t': 'argument',
                     '--target-directory': 'argument',
+                    '-r': 'regular'
                 },
                 callForEachArg: true,
                 destinationArgLocations: ['-t', '--target-directory', -1]
