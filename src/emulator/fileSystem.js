@@ -214,7 +214,7 @@ function FileSystem() {
 
     const ls = chainErrors(
         // Implement . .. when -a
-        (path, all = false) => {
+        (path, options) => {
             const absolutePath = evaluatePath(path);
             const item = getItem(absolutePath);
             if (!item) { throw new Error('No such file or directory'); }
@@ -226,11 +226,11 @@ function FileSystem() {
                 name: item.getName(),
             });
 
-            if (item.getType() === 'file') {
+            if (options.dir || item.getType() === 'file') {
                 return constructObject(item);
             }
 
-            const result = all
+            const result = options.all
                 ? item.getContents().map(constructObject)
                 : item.getContents().filter(i => !i.getName().startsWith('.')).map(constructObject);
 
@@ -344,6 +344,7 @@ function FileSystem() {
         // Check write, execute permissions on destDir?
         newItem.setName(destFileName);
         destDir.addItem(newItem);
+        newItem.setParent(destDir);
 
         if (operation === 'move') {
             const sourceDirPath = sourcePath.substring(0, sourcePath.lastIndexOf('/'));

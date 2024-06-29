@@ -205,8 +205,11 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
             // Implement -l
             (stdin, arg, flagMap, multipleArgsMode = false) => {
                 const long = flagMap.has('-l');
-                const all = flagMap.has('-a');
-                const result = fileSystem.ls(arg ? arg : '.', all);
+                const options = {
+                    dir: flagMap.has('-d'),
+                    all: flagMap.has('-a'),
+                }
+                const result = fileSystem.ls(arg ? arg : '.', options);
 
                 const formatResult = (item) => {
                     const name = item.type === 'directory' ? colorize(item.name, 'bold', 'blue') : item.name;
@@ -227,6 +230,7 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
                 name: 'ls',
                 flags: {
                     '-l': 'regular',
+                    '-d': 'regular',
                     '-a': 'regular',
                 },
                 callForEachArg: true,
