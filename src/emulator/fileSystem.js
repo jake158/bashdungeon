@@ -143,6 +143,7 @@ function FileSystem() {
                 }
             });
         };
+        dir.setParent(dir);
         traverse(dir);
     })(tree);
 
@@ -213,26 +214,25 @@ function FileSystem() {
     );
 
     const ls = chainErrors(
-        // Implement . .. when -a
         (path, options) => {
             const absolutePath = evaluatePath(path);
             const item = getItem(absolutePath);
             if (!item) { throw new Error('No such file or directory'); }
 
-            const constructObject = (item) => ({
+            const constructObject = (item, name = false) => ({
                 type: item.getType(),
                 permissions: item.getPermissions(),
                 links: item.getLinks(),
-                name: item.getName(),
+                name: name ? name : item.getName(),
             });
 
             if (options.dir || item.getType() === 'file') {
-                return constructObject(item);
+                return constructObject(item, path === '.' ? '.' : false);
             }
 
             const result = options.all
-                ? item.getContents().map(constructObject)
-                : item.getContents().filter(i => !i.getName().startsWith('.')).map(constructObject);
+                ? [constructObject(item, '.'), constructObject(item.getParent(), '..'), ...item.getContents().map(i => constructObject(i))]
+                : item.getContents().filter(i => !i.getName().startsWith('.')).map(i => constructObject(i));
 
             return result.sort(
                 (itemA, itemB) => {
