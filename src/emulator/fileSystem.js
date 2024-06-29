@@ -5,6 +5,7 @@ function Dir(name, contents = [], permissions = 'drwxr-xr-x') {
     let _name = name;
     let _permissions = permissions;
     let _contents = contents;
+    let _parent = null;
 
     const checkPermissions = (action) => {
         const perms = {
@@ -34,23 +35,37 @@ function Dir(name, contents = [], permissions = 'drwxr-xr-x') {
         }
     };
 
+    const calculateLinks = () => {
+        // Initial links: 1 for the directory itself, 1 for the parent link
+        let links = 2;
+        _contents.forEach(item => {
+            if (item.getType() === 'directory') {
+                links += 1;
+            }
+        });
+        return links;
+    };
+
 
     return {
+        isEmpty: () => _contents.length === 0,
         getType: () => _type,
         getName: () => _name,
         getPermissions: () => _permissions,
-        isEmpty: () => _contents.length === 0,
-        getContents: () => {
-            checkPermissions('read');
+        getContents: (bypass = false) => {
+            if (!bypass) checkPermissions('read');
             return _contents;
         },
+        getLinks: calculateLinks,
         setName: (name) => _name = name,
         addItem: (item) => {
             checkPermissions('write');
             _contents.push(item);
         },
         findItemByName,
-        removeItemByName
+        removeItemByName,
+        setParent: (parent) => _parent = parent,
+        getParent: () => _parent
     };
 }
 
@@ -60,6 +75,7 @@ function File(name, content = '', permissions = '-rw-r--r--') {
     let _name = name;
     let _permissions = permissions;
     let _content = content;
+    let _parent = null;
 
     const checkPermissions = (action) => {
         const perms = {
@@ -81,6 +97,7 @@ function File(name, content = '', permissions = '-rw-r--r--') {
             checkPermissions('read');
             return _content;
         },
+        getLinks: () => 1,
         setName: (name) => _name = name,
         setContent: (content) => {
             checkPermissions('write');
@@ -89,7 +106,9 @@ function File(name, content = '', permissions = '-rw-r--r--') {
         appendContent: (content) => {
             checkPermissions('write');
             _content += content;
-        }
+        },
+        setParent: (parent) => _parent = parent,
+        getParent: () => _parent
     };
 }
 
@@ -114,6 +133,19 @@ function FileSystem() {
             ])
         ])
     ]);
+
+    (function setParents(dir) {
+        const traverse = (currentDir) => {
+            currentDir.getContents(true).forEach(item => {
+                item.setParent(currentDir);
+                if (item.getType() === 'directory') {
+                    traverse(item);
+                }
+            });
+        };
+        traverse(dir);
+    })(tree);
+
 
     const evaluatePath = (path) => {
         path = path.replace('~', homeDirectory);
@@ -154,7 +186,7 @@ function FileSystem() {
         const item = getItem(evaluatePath(path));
         if (!item) return false;
         return item.getType() === 'directory';
-    }
+    };
 
     const chainErrors = (func, message = null) => {
         return function (...args) {
@@ -190,6 +222,7 @@ function FileSystem() {
             const constructObject = (item) => ({
                 type: item.getType(),
                 permissions: item.getPermissions(),
+                links: item.getLinks(),
                 name: item.getName(),
             });
 
@@ -250,7 +283,9 @@ function FileSystem() {
                 throw new Error('File exists');
             }
 
-            directory.addItem(Dir(dirname));
+            const newDir = Dir(dirname);
+            newDir.setParent(directory);
+            directory.addItem(newDir);
         },
         'cannot create directory'
     );
@@ -259,7 +294,6 @@ function FileSystem() {
         (path) => {
             const absolutePath = evaluatePath(path);
             const directory = getItem(absolutePath);
-            const sep = absolutePath.lastIndexOf('/');
 
             if (!directory) {
                 throw new Error('No such file or directory');
@@ -271,7 +305,7 @@ function FileSystem() {
                 throw new Error('Directory not empty');
             }
 
-            const parentDirectory = getItem(absolutePath.substring(0, sep));
+            const parentDirectory = getItem(absolutePath).getParent();
             parentDirectory.removeItemByName(directory.getName());
         },
         'failed to remove'
@@ -307,6 +341,7 @@ function FileSystem() {
             : Dir(item.getName(), item.getContents().map(copyItem), item.getPermissions());
 
         const newItem = (operation === 'copy') ? copyItem(sourceItem) : sourceItem;
+        // Check write, execute permissions on destDir?
         newItem.setName(destFileName);
         destDir.addItem(newItem);
 

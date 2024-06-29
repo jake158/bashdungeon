@@ -210,7 +210,7 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
 
                 const formatResult = (item) => {
                     const name = item.type === 'directory' ? colorize(item.name, 'bold', 'blue') : item.name;
-                    if (long) { return `${item.permissions} ${name}`; }
+                    if (long) { return `${item.permissions} ${item.links} ${name}`; }
                     else { return name; }
                 }
 
