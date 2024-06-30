@@ -58,9 +58,10 @@ function Dir(name, contents = [], permissions = 'drwxr-xr-x') {
         },
         getLinks: calculateLinks,
         setName: (name) => _name = name,
-        addItem: (item) => {
+        addItem: function (item) {
             checkPermissions('write');
             _contents.push(item);
+            item.setParent(this);
         },
         findItemByName,
         removeItemByName,
@@ -284,7 +285,6 @@ function FileSystem() {
             }
 
             const newDir = Dir(dirname);
-            newDir.setParent(directory);
             directory.addItem(newDir);
         },
         'cannot create directory'
@@ -312,7 +312,9 @@ function FileSystem() {
     );
 
 
-    const _handleItemMove = (sourcePath, sourceItem, destPath, operation) => {
+    const _handleItemMove = (sourcePath, destPath, operation) => {
+        const sourceItem = getItem(sourcePath);
+        if (!sourceItem) { throw new Error('No such file or directory'); }
 
         const getDestinationInfo = (destPath) => {
             const sep = destPath.lastIndexOf('/');
@@ -341,10 +343,8 @@ function FileSystem() {
             : Dir(item.getName(), item.getContents().map(copyItem), item.getPermissions());
 
         const newItem = (operation === 'copy') ? copyItem(sourceItem) : sourceItem;
-        // Check write, execute permissions on destDir?
         newItem.setName(destFileName);
         destDir.addItem(newItem);
-        newItem.setParent(destDir);
 
         if (operation === 'move') {
             const sourceDirPath = sourcePath.substring(0, sourcePath.lastIndexOf('/'));
@@ -355,20 +355,13 @@ function FileSystem() {
     };
 
     // Ensure none of:
-    // Moving directory you are in right now
     // Tampering with root
 
     const cp = chainErrors(
         (source, dest) => {
             const sourcePath = evaluatePath(source);
             const destPath = evaluatePath(dest);
-
-            const sourceItem = getItem(sourcePath);
-            if (!sourceItem) {
-                throw new Error('No such file or directory');
-            }
-
-            _handleItemMove(sourcePath, sourceItem, destPath, 'copy');
+            _handleItemMove(sourcePath, destPath, 'copy');
         },
         'cannot copy'
     );
@@ -377,13 +370,7 @@ function FileSystem() {
         (source, dest) => {
             const sourcePath = evaluatePath(source);
             const destPath = evaluatePath(dest);
-
-            const sourceItem = getItem(sourcePath);
-            if (!sourceItem) {
-                throw new Error('No such file or directory');
-            }
-
-            _handleItemMove(sourcePath, sourceItem, destPath, 'move');
+            _handleItemMove(sourcePath, destPath, 'move');
         },
         'cannot move'
     );
