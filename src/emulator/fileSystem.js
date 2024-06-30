@@ -1,11 +1,15 @@
 
 
-function Dir(name, contents = [], permissions = 'drwxr-xr-x') {
+function Dir(name, settings = {}, contents = []) {
     const _type = 'directory';
     let _name = name;
-    let _permissions = permissions;
     let _contents = contents;
     let _parent = null;
+    let {
+        permissions: _permissions = 'drwxr-xr-x',
+        immutable: _immutable = false,
+    } = settings;
+
 
     const checkPermissions = (action) => {
         const perms = {
@@ -25,9 +29,9 @@ function Dir(name, contents = [], permissions = 'drwxr-xr-x') {
 
     const removeItemByName = (name) => {
         checkPermissions('write');
-
         const index = _contents.findIndex(item => item.getName() === name);
         if (index !== -1) {
+            if (_contents[index].isImmutable()) throw new Error('Permission denied');
             _contents.splice(index, 1);
             return true;
         } else {
@@ -36,7 +40,6 @@ function Dir(name, contents = [], permissions = 'drwxr-xr-x') {
     };
 
     const calculateLinks = () => {
-        // Initial links: 1 for the directory itself, 1 for the parent link
         let links = 2;
         _contents.forEach(item => {
             if (item.getType() === 'directory') {
@@ -48,7 +51,6 @@ function Dir(name, contents = [], permissions = 'drwxr-xr-x') {
 
 
     return {
-        isEmpty: () => _contents.length === 0,
         getType: () => _type,
         getName: () => _name,
         getPermissions: () => _permissions,
@@ -57,26 +59,36 @@ function Dir(name, contents = [], permissions = 'drwxr-xr-x') {
             return _contents;
         },
         getLinks: calculateLinks,
-        setName: (name) => _name = name,
+        getParent: () => _parent,
+        isEmpty: () => _contents.length === 0,
+        isImmutable: () => _immutable,
+
+        setParent: (parent) => _parent = parent,
+        setName: (name) => {
+            if (_immutable) throw new Error('Permission denied');
+            _name = name;
+        },
         addItem: function (item) {
             checkPermissions('write');
             _contents.push(item);
             item.setParent(this);
         },
         findItemByName,
-        removeItemByName,
-        setParent: (parent) => _parent = parent,
-        getParent: () => _parent
+        removeItemByName
     };
 }
 
 
-function File(name, content = '', permissions = '-rw-r--r--') {
+function File(name, settings = {}, content = '') {
     const _type = 'file';
     let _name = name;
-    let _permissions = permissions;
     let _content = content;
     let _parent = null;
+    let {
+        permissions: _permissions = '-rw-r--r--',
+        immutable: _immutable = false,
+    } = settings;
+
 
     const checkPermissions = (action) => {
         const perms = {
@@ -99,17 +111,24 @@ function File(name, content = '', permissions = '-rw-r--r--') {
             return _content;
         },
         getLinks: () => 1,
-        setName: (name) => _name = name,
+        getParent: () => _parent,
+        isImmutable: () => _immutable,
+
+        setParent: (parent) => _parent = parent,
+        setName: (name) => {
+            if (_immutable) throw new Error('Permission denied');
+            _name = name;
+        },
         setContent: (content) => {
+            if (_immutable) throw new Error('Permission denied');
             checkPermissions('write');
             _content = content;
         },
         appendContent: (content) => {
+            if (_immutable) throw new Error('Permission denied');
             checkPermissions('write');
             _content += content;
-        },
-        setParent: (parent) => _parent = parent,
-        getParent: () => _parent
+        }
     };
 }
 
@@ -119,21 +138,25 @@ function FileSystem() {
     let currentDirectory = `${homeDirectory}/Dungeon`;
     let previousDirectory = currentDirectory;
 
-    const tree = Dir('/', [
-        Dir('home', [
-            Dir('wizard', [
-                Dir('Dungeon', [
-                    File('file1.txt', 'Content of file1.txt'),
-                    File('emptyfile.txt'),
-                    File('.test', 'Hidden file contents'),
-                    File('unreadable.txt', 'Unreadable', '--wx------'),
-                    Dir('noexecute', [], 'drw-------'),
-                    Dir('noread', [], 'd-wx------'),
-                    Dir('nowrite', [], 'dr-x------')
+    const tree = Dir('/', { immutable: true },
+        [
+            Dir('home', { immutable: true },
+                [
+                    Dir('wizard', { immutable: true },
+                        [
+                            Dir('Dungeon', { immutable: true },
+                                [
+                                    File('file1.txt', {}, 'Content of file1.txt'),
+                                    File('emptyfile.txt'),
+                                    File('.test', {}, 'Hidden file contents'),
+                                    File('unreadable.txt', { permissions: '--wx------' }, 'Unreadable'),
+                                    Dir('noexecute', { permissions: 'drw-------' }, []),
+                                    Dir('noread', { permissions: 'd-wx------' }, []),
+                                    Dir('nowrite', { permissions: 'dr-x------' }, []),
+                                ])
+                        ])
                 ])
-            ])
-        ])
-    ]);
+        ]);
 
     (function setParents(dir) {
         const traverse = (currentDir) => {
@@ -333,29 +356,26 @@ function FileSystem() {
             throw new Error(`'${destPath}': No such file or directory`);
         }
 
-        const destItem = destDir.findItemByName(destFileName);
-        if (destItem) {
-            destDir.removeItemByName(destFileName);
-        }
-
         const copyItem = (item) => item.getType() === 'file'
-            ? File(item.getName(), item.getContent(), item.getPermissions())
-            : Dir(item.getName(), item.getContents().map(copyItem), item.getPermissions());
+            ? File(item.getName(), { permissions: item.getPermissions() }, item.getContent())
+            : Dir(item.getName(), { permissions: item.getPermissions() }, item.getContents().map(copyItem));
 
         const newItem = (operation === 'copy') ? copyItem(sourceItem) : sourceItem;
+
         newItem.setName(destFileName);
+        const sourceItemName = sourceItem.getName();
+        destDir.removeItemByName(destFileName);
         destDir.addItem(newItem);
 
-        if (operation === 'move') {
-            const sourceDirPath = sourcePath.substring(0, sourcePath.lastIndexOf('/'));
-            const sourceDir = getItem(sourceDirPath);
-            const sourceItemName = sourceItem.getName();
-            if (sourceDirPath !== destPath || sourceItemName !== destFileName) { sourceDir.removeItemByName(sourceItemName); }
+        const sourceDirPath = sourcePath.substring(0, sourcePath.lastIndexOf('/'));
+        const sourceDir = getItem(sourceDirPath);
+        if (operation === 'move' && sourceDir.getName() != destDir.getName()) {
+            sourceDir.removeItemByName(sourceItemName);
         }
     };
 
-    // Ensure none of:
-    // Tampering with root
+    // TODO: Checks for valid file/dir names ?
+    // Cleaning up constructing filetree with File and Dir objects
 
     const cp = chainErrors(
         (source, dest) => {
