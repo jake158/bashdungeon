@@ -21,7 +21,6 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
         return dest;
     };
 
-
     const executeMultipleArgs = (func, stdin, positionalArgs, flagMap, name, destinationArgs, sortArgs) => {
         const dest = destinationArgs ? popDestinationArg(positionalArgs, flagMap, destinationArgs) : null;
 
@@ -52,7 +51,6 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
         }
         return { stdin: '', stdout: stdout.trim(), stderr: stderr.trim() };
     };
-
 
     const command = (func, settings = {}) => {
         const {
@@ -107,7 +105,7 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
         ),
 
         'pwd': command(
-            () => { return fileSystem.getCurrentDirectory(); },
+            () => { return fileSystem.currentDirectory; },
             { name: 'pwd' }
         ),
 
@@ -223,7 +221,7 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
 
                 const output = result.map(formatResult).join(long ? '\n' : '  ');
                 if (!multipleArgsMode) { return output; }
-                return `\n${arg.replace('~', fileSystem.getHomeDirectory())}:\n${output}\n`;
+                return `\n${arg.replace('~', fileSystem.homeDirectory)}:\n${output}\n`;
             },
 
             {

@@ -1,194 +1,178 @@
 
 
-const ItemPrototype = {
+class Item {
+    #type;
+    #name;
+    #permissions;
+    #immutable;
+    #parent;
+
+    constructor(name, { type = null, permissions = '---------', immutable = false } = {}) {
+        this.#type = type;
+        this.#name = name;
+        this.#permissions = permissions;
+        this.#immutable = immutable;
+        this.#parent = null;
+    }
+
     checkPermissions(action) {
         const perms = {
-            read: this._permissions[1] === 'r',
-            write: this._permissions[2] === 'w',
-            execute: this._permissions[3] === 'x'
+            read: this.#permissions[1] === 'r',
+            write: this.#permissions[2] === 'w',
+            execute: this.#permissions[3] === 'x'
         };
         if (!perms[action]) {
             throw new Error('Permission denied');
         }
-    },
-    getType() {
-        return this._type;
-    },
-    getName() {
-        return this._name;
-    },
-    getPermissions() {
-        return this._permissions;
-    },
-    getParent() {
-        return this._parent;
-    },
-    isImmutable() {
-        return this._immutable;
-    },
-    setParent(parent) {
-        this._parent = parent;
-    },
-    setName(name) {
-        if (this._immutable) throw new Error('Permission denied');
-        this._name = name;
     }
-};
+
+    get type() {
+        return this.#type;
+    }
+
+    get parent() {
+        return this.#parent;
+    }
+
+    get name() {
+        return this.#name;
+    }
+
+    get permissions() {
+        return this.#permissions;
+    }
+
+    get immutable() {
+        return this.#immutable;
+    }
+
+    set parent(parent) {
+        this.#parent = parent;
+    }
+
+    set name(name) {
+        if (this.#immutable) throw new Error('Permission denied');
+        this.#name = name;
+    }
+}
 
 
-Dir.proto = Object.create(ItemPrototype);
+class Dir extends Item {
+    #contents;
 
-Object.assign(Dir.proto, {
+    constructor(name, { permissions = 'drwxr-xr-x', immutable = false } = {}, contents = []) {
+        super(name, { type: 'directory', permissions, immutable });
+        this.#contents = contents;
+        contents.forEach(item => item.parent = this);
+    }
 
-    findItemByName(name) {
-        this.checkPermissions('execute');
-        return this._contents.find(item => item.getName() === name);
-    },
+    get contents() {
+        this.checkPermissions('read');
+        return this.#contents;
+    }
 
-    getContents(bypass = false) {
-        if (!bypass) this.checkPermissions('read');
-        return this._contents;
-    },
-
-    getLinks() {
+    get links() {
         let links = 2;
-        this._contents.forEach(item => {
-            if (item.getType() === 'directory') {
+        this.#contents.forEach(item => {
+            if (item.type === 'directory') {
                 links += 1;
             }
         });
         return links;
-    },
+    }
 
-    isEmpty() {
-        return this._contents.length === 0;
-    },
+    get isEmpty() {
+        return this.#contents.length === 0;
+    }
+
+    findItemByName(name) {
+        this.checkPermissions('execute');
+        return this.#contents.find(item => item.name === name);
+    }
 
     removeItemByName(name) {
         this.checkPermissions('write');
-        const index = this._contents.findIndex(item => item.getName() === name);
+        const index = this.#contents.findIndex(item => item.name === name);
         if (index !== -1) {
-            if (this._contents[index].isImmutable()) throw new Error('Permission denied');
-            this._contents.splice(index, 1);
+            if (this.#contents[index].immutable) throw new Error('Permission denied');
+            this.#contents.splice(index, 1);
             return true;
         } else {
             return false;
         }
-    },
+    }
 
     addItem(item) {
         this.checkPermissions('write');
-        this._contents.push(item);
-        item.setParent(this);
+        this.#contents.push(item);
+        item.parent = this;
     }
-});
-
-
-function Dir(name, settings = {}, contents = []) {
-    let {
-        permissions = 'drwxr-xr-x',
-        immutable = false,
-    } = settings;
-
-    const dir = Object.create(Dir.proto);
-    dir._type = 'directory';
-    dir._name = name;
-    dir._contents = contents;
-    dir._parent = null;
-    dir._permissions = permissions;
-    dir._immutable = immutable;
-
-    return dir;
 }
 
 
-File.proto = Object.create(ItemPrototype);
+class File extends Item {
+    #content;
 
-Object.assign(File.proto, {
+    constructor(name, { content = '', permissions = '-rw-r--r--', immutable = false } = {}) {
+        super(name, { type: 'file', permissions, immutable });
+        this.#content = content;
+    }
 
-    getContent() {
+    get content() {
         this.checkPermissions('read');
-        return this._content;
-    },
+        return this.#content;
+    }
 
-    getLinks() {
+    get links() {
         return 1;
-    },
+    }
 
-    setContent(content) {
-        if (this._immutable) throw new Error('Permission denied');
+    set content(content) {
+        if (this.immutable) throw new Error('Permission denied');
         this.checkPermissions('write');
-        this._content = content;
-    },
+        this.#content = content;
+    }
 
     appendContent(content) {
-        if (this._immutable) throw new Error('Permission denied');
+        if (this.immutable) throw new Error('Permission denied');
         this.checkPermissions('write');
-        this._content += content;
+        this.#content += content;
     }
-});
-
-
-function File(name, settings = {}, content = '') {
-    let {
-        permissions = '-rw-r--r--',
-        immutable = false,
-    } = settings;
-
-    const file = Object.create(File.proto);
-    file._type = 'file';
-    file._name = name;
-    file._content = content;
-    file._parent = null;
-    file._permissions = permissions;
-    file._immutable = immutable;
-
-    return file;
 }
 
 
-function FileSystem() {
-    const homeDirectory = '/home/wizard';
-    let currentDirectory = `${homeDirectory}/Dungeon`;
-    let previousDirectory = currentDirectory;
+class FileSystem {
+    #homeDirectory;
+    #currentDirectory;
+    #previousDirectory;
 
-    const tree = Dir('/', { immutable: true },
-        [
-            Dir('home', { immutable: true },
-                [
-                    Dir('wizard', { immutable: true },
-                        [
-                            Dir('Dungeon', { immutable: true },
-                                [
-                                    File('file1.txt', {}, 'Content of file1.txt'),
-                                    File('emptyfile.txt'),
-                                    File('.test', {}, 'Hidden file contents'),
-                                    File('unreadable.txt', { permissions: '--wx------' }, 'Unreadable'),
-                                    Dir('noexecute', { permissions: 'drw-------' }, []),
-                                    Dir('noread', { permissions: 'd-wx------' }, []),
-                                    Dir('nowrite', { permissions: 'dr-x------' }, []),
-                                ])
-                        ])
+    constructor() {
+        this.#homeDirectory = '/home/wizard';
+        this.#currentDirectory = `${this.#homeDirectory}/Dungeon`;
+        this.#previousDirectory = this.#currentDirectory;
+
+        this.tree = new Dir('/', { immutable: true }, [
+            new Dir('home', { immutable: true }, [
+                new Dir('wizard', { immutable: true }, [
+                    new Dir('Dungeon', { immutable: true }, [
+                        new File('file1.txt', { content: 'file1 yo' }),
+                        new File('emptyfile.txt'),
+                        new File('.test', { content: 'hidden immutable file yo', immutable: true }),
+                        new File('unreadable.txt', { content: 'unreadable yo', permissions: '--wx------' }),
+                        new Dir('noexecute', { permissions: 'drw-------' }),
+                        new Dir('noread', { permissions: 'd-wx------' }),
+                        new Dir('nowrite', { permissions: 'dr-x------' })
+                    ])
                 ])
+            ])
         ]);
 
-    (function setParents(dir) {
-        const traverse = (currentDir) => {
-            currentDir.getContents(true).forEach(item => {
-                item.setParent(currentDir);
-                if (item.getType() === 'directory') {
-                    traverse(item);
-                }
-            });
-        };
-        dir.setParent(dir);
-        traverse(dir);
-    })(tree);
+        this.tree.parent = this.tree;
+    }
 
-
-    const evaluatePath = (path) => {
-        path = path.replace('~', homeDirectory);
-        const stack = path.startsWith('/') ? [] : currentDirectory.split('/').filter(Boolean);
+    #evaluatePath(path) {
+        path = path.replace('~', this.#homeDirectory);
+        const stack = path.startsWith('/') ? [] : this.#currentDirectory.split('/').filter(Boolean);
         const parts = path.split('/');
 
         for (const part of parts) {
@@ -203,226 +187,198 @@ function FileSystem() {
             }
         }
         return '/' + stack.join('/');
-    };
+    }
 
-    const getItem = (path) => {
+    #getItem(path) {
         const parts = path.split('/').filter(Boolean);
-        let curr = tree;
+        let curr = this.tree;
 
         for (const part of parts) {
             const item = curr.findItemByName(part);
             if (item) {
                 curr = item;
-            }
-            else {
+            } else {
                 return null;
             }
         }
         return curr;
-    };
+    }
 
-    const isDirectory = (path) => {
-        const item = getItem(evaluatePath(path));
-        if (!item) return false;
-        return item.getType() === 'directory';
-    };
-
-    const chainErrors = (func, message = null) => {
-        return function (...args) {
-            try {
-                return func(...args);
-            } catch (error) {
-                throw new Error(`${message ? message + ' ' : ''}'${args[0].replace('~', homeDirectory)}': ${error.message}`);
-            }
-        };
-    };
-
-
-    const getFileContent = chainErrors(
-        (path) => {
-            const item = getItem(evaluatePath(path));
-            if (!item) {
-                throw new Error('No such file or directory');
-            }
-            else if (item.getType() === 'directory') {
-                throw new Error('Is a directory');
-            }
-            return item.getContent();
-        }
-    );
-
-    const ls = chainErrors(
-        (path, options) => {
-            const absolutePath = evaluatePath(path);
-            const item = getItem(absolutePath);
-            if (!item) { throw new Error('No such file or directory'); }
-
-            const constructObject = (item, name = false) => ({
-                type: item.getType(),
-                permissions: item.getPermissions(),
-                links: item.getLinks(),
-                name: name ? name : item.getName(),
-            });
-
-            if (options.dir || item.getType() === 'file') {
-                return constructObject(item, path === '.' ? '.' : false);
-            }
-
-            const result = options.all
-                ? [constructObject(item, '.'), constructObject(item.getParent(), '..'), ...item.getContents().map(i => constructObject(i))]
-                : item.getContents().filter(i => !i.getName().startsWith('.')).map(i => constructObject(i));
-
-            return result.sort(
-                (itemA, itemB) => {
-                    if (itemA.type === 'directory' && itemB.type !== 'directory') { return -1; }
-                    if (itemA.type !== 'directory' && itemB.type === 'directory') { return 1; }
-                    const a = itemA.name.toLowerCase();
-                    const b = itemB.name.toLowerCase();
-                    return (a < b) ? -1 : (a > b) ? 1 : 0;
-                });
-        },
-        'cannot access'
-    );
-
-    const cd = chainErrors(
-        (path) => {
-            const absolutePath = path === '-' ? previousDirectory : evaluatePath(path);
-            const item = getItem(absolutePath);
-
-            if (!item) {
-                throw new Error('No such file or directory');
-            }
-            else if (item.getType() != 'directory') {
-                throw new Error('Not a directory');
-            }
-            else if (item.getPermissions()[3] != 'x') {
-                throw new Error('Permission denied');
-            }
-
-            previousDirectory = currentDirectory;
-            currentDirectory = absolutePath;
-        }
-    );
-
-    const mkdir = chainErrors(
-        (path) => {
-            const absolutePath = evaluatePath(path);
-            const sep = absolutePath.lastIndexOf('/');
-            const directory = getItem(absolutePath.substring(0, sep));
-            const dirname = absolutePath.substring(sep + 1);
-
-            if (!directory) {
-                throw new Error('No such file or directory');
-            }
-            else if (directory.getType() != 'directory') {
-                throw new Error('Not a directory');
-            }
-            else if (!dirname || directory.findItemByName(dirname)) {
-                throw new Error('File exists');
-            }
-
-            const newDir = Dir(dirname);
-            directory.addItem(newDir);
-        },
-        'cannot create directory'
-    );
-
-    const rmdir = chainErrors(
-        (path) => {
-            const absolutePath = evaluatePath(path);
-            const directory = getItem(absolutePath);
-
-            if (!directory) {
-                throw new Error('No such file or directory');
-            }
-            else if (directory.getType() != 'directory') {
-                throw new Error('Not a directory');
-            }
-            else if (!directory.isEmpty()) {
-                throw new Error('Directory not empty');
-            }
-
-            const parentDirectory = getItem(absolutePath).getParent();
-            parentDirectory.removeItemByName(directory.getName());
-        },
-        'failed to remove'
-    );
-
-
-    const _handleItemMove = (sourcePath, destPath, operation) => {
-        const sourceItem = getItem(sourcePath);
+    #handleItemMove(sourcePath, destPath, operation) {
+        const sourceItem = this.#getItem(sourcePath);
         if (!sourceItem) { throw new Error('No such file or directory'); }
 
         const getDestinationInfo = (destPath) => {
             const sep = destPath.lastIndexOf('/');
-            const destDirPath = sep === -1 ? currentDirectory : destPath.substring(0, sep);
+            const destDirPath = sep === -1 ? this.#currentDirectory : destPath.substring(0, sep);
             const destFileName = sep === -1 ? destPath : destPath.substring(sep + 1);
-            const destDir = getItem(destDirPath);
+            const destDir = this.#getItem(destDirPath);
             return { destDir, destFileName };
         };
 
-        const itemAtPath = getItem(destPath);
-        const { destDir, destFileName } = itemAtPath && itemAtPath.getType() === 'directory'
-            ? { destDir: itemAtPath, destFileName: sourceItem.getName() }
+        const itemAtPath = this.#getItem(destPath);
+        const { destDir, destFileName } = itemAtPath && itemAtPath.type === 'directory'
+            ? { destDir: itemAtPath, destFileName: sourceItem.name }
             : getDestinationInfo(destPath);
 
         if (!destDir) {
             throw new Error(`'${destPath}': No such file or directory`);
         }
 
-        const copyItem = (item) => item.getType() === 'file'
-            ? File(item.getName(), { permissions: item.getPermissions() }, item.getContent())
-            : Dir(item.getName(), { permissions: item.getPermissions() }, item.getContents().map(copyItem));
+        const copyItem = (item) => item.type === 'file'
+            ? new File(item.name, { permissions: item.permissions }, item.content)
+            : new Dir(item.name, { permissions: item.permissions }, item.contents.map(copyItem));
 
         const newItem = (operation === 'copy') ? copyItem(sourceItem) : sourceItem;
 
-        newItem.setName(destFileName);
-        const sourceItemName = sourceItem.getName();
+        newItem.name = destFileName;
+        const sourceItemName = sourceItem.name;
         destDir.removeItemByName(destFileName);
         destDir.addItem(newItem);
 
         const sourceDirPath = sourcePath.substring(0, sourcePath.lastIndexOf('/'));
-        const sourceDir = getItem(sourceDirPath);
+        const sourceDir = this.#getItem(sourceDirPath);
         if (operation === 'move' && !Object.is(sourceDir, destDir)) {
             sourceDir.removeItemByName(sourceItemName);
         }
-    };
+    }
 
-    // TODO: Checks for valid file/dir names ?
-    // Cleaning up constructing filetree with File and Dir objects
+    #chainErrors(func, message = null) {
+        return (...args) => {
+            try {
+                return func(...args);
+            } catch (error) {
+                throw new Error(`${message ? message + ' ' : ''}'${args[0].replace('~', this.#homeDirectory)}': ${error.message}`);
+            }
+        };
+    }
 
-    const cp = chainErrors(
-        (source, dest) => {
-            const sourcePath = evaluatePath(source);
-            const destPath = evaluatePath(dest);
-            _handleItemMove(sourcePath, destPath, 'copy');
+
+    get homeDirectory() {
+        return this.#homeDirectory;
+    }
+
+    get currentDirectory() {
+        return this.#currentDirectory;
+    }
+
+    isDirectory(path) {
+        const item = this.#getItem(this.#evaluatePath(path));
+        if (!item) return false;
+        return item.type === 'directory';
+    }
+
+    getFileContent = this.#chainErrors(
+        (path) => {
+            const item = this.#getItem(this.#evaluatePath(path));
+            if (!item) {
+                throw new Error('No such file or directory');
+            } else if (item.type === 'directory') {
+                throw new Error('Is a directory');
+            }
+            return item.content;
         },
-        'cannot copy'
-    );
+        'cannot access');
 
-    const mv = chainErrors(
-        (source, dest) => {
-            const sourcePath = evaluatePath(source);
-            const destPath = evaluatePath(dest);
-            _handleItemMove(sourcePath, destPath, 'move');
+    ls = this.#chainErrors(
+        (path, options) => {
+            const absolutePath = this.#evaluatePath(path);
+            const item = this.#getItem(absolutePath);
+            if (!item) { throw new Error('No such file or directory'); }
+
+            const constructObject = (item, name = false) => ({
+                type: item.type,
+                permissions: item.permissions,
+                links: item.links,
+                name: name ? name : item.name,
+            });
+
+            if (options.dir || item.type === 'file') {
+                return constructObject(item, path === '.' ? '.' : false);
+            }
+
+            const result = options.all
+                ? [constructObject(item, '.'), constructObject(item.parent, '..'), ...item.contents.map(i => constructObject(i))]
+                : item.contents.filter(i => !i.name.startsWith('.')).map(i => constructObject(i));
+
+            return result.sort((itemA, itemB) => {
+                if (itemA.type === 'directory' && itemB.type !== 'directory') { return -1; }
+                if (itemA.type !== 'directory' && itemB.type === 'directory') { return 1; }
+                const a = itemA.name.toLowerCase();
+                const b = itemB.name.toLowerCase();
+                return (a < b) ? -1 : (a > b) ? 1 : 0;
+            });
         },
-        'cannot move'
-    );
+        'cannot access');
 
+    cd = this.#chainErrors(
+        (path) => {
+            const absolutePath = path === '-' ? this.#previousDirectory : this.#evaluatePath(path);
+            const item = this.#getItem(absolutePath);
 
-    return {
-        getHomeDirectory: () => homeDirectory,
-        getCurrentDirectory: () => currentDirectory,
-        isDirectory,
-        getFileContent,
-        ls,
-        cd,
-        mkdir,
-        rmdir,
-        cp,
-        mv
-    };
+            if (!item) {
+                throw new Error('No such file or directory');
+            } else if (item.type != 'directory') {
+                throw new Error('Not a directory');
+            } else if (item.permissions[3] != 'x') {
+                throw new Error('Permission denied');
+            }
+
+            this.#previousDirectory = this.#currentDirectory;
+            this.#currentDirectory = absolutePath;
+        });
+
+    mkdir = this.#chainErrors(
+        (path) => {
+            const absolutePath = this.#evaluatePath(path);
+            const sep = absolutePath.lastIndexOf('/');
+            const directory = this.#getItem(absolutePath.substring(0, sep));
+            const dirname = absolutePath.substring(sep + 1);
+
+            if (!directory) {
+                throw new Error('No such file or directory');
+            } else if (directory.type != 'directory') {
+                throw new Error('Not a directory');
+            } else if (!dirname || directory.findItemByName(dirname)) {
+                throw new Error('File exists');
+            }
+
+            const newDir = new Dir(dirname);
+            directory.addItem(newDir);
+        },
+        'cannot create directory');
+
+    rmdir = this.#chainErrors(
+        (path) => {
+            const absolutePath = this.#evaluatePath(path);
+            const directory = this.#getItem(absolutePath);
+
+            if (!directory) {
+                throw new Error('No such file or directory');
+            } else if (directory.type != 'directory') {
+                throw new Error('Not a directory');
+            } else if (!directory.isEmpty) {
+                throw new Error('Directory not empty');
+            }
+
+            const parentDirectory = directory.parent;
+            parentDirectory.removeItemByName(directory.name);
+        },
+        'failed to remove');
+
+    cp = this.#chainErrors(
+        (source, dest) => {
+            this.#handleItemMove(this.#evaluatePath(source), this.#evaluatePath(dest), 'copy');
+        },
+        'cannot copy');
+
+    mv = this.#chainErrors(
+        (source, dest) => {
+            this.#handleItemMove(this.#evaluatePath(source), this.#evaluatePath(dest), 'move');
+        },
+        'cannot move');
+
 }
 
 
-export { FileSystem, Dir, File };
+export { FileSystem };
