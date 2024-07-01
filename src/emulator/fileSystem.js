@@ -1,135 +1,149 @@
 
 
-function Dir(name, settings = {}, contents = []) {
-    const _type = 'directory';
-    let _name = name;
-    let _contents = contents;
-    let _parent = null;
-    let {
-        permissions: _permissions = 'drwxr-xr-x',
-        immutable: _immutable = false,
-    } = settings;
-
-
-    const checkPermissions = (action) => {
+const ItemPrototype = {
+    checkPermissions(action) {
         const perms = {
-            read: _permissions[1] === 'r',
-            write: _permissions[2] === 'w',
-            execute: _permissions[3] === 'x'
+            read: this._permissions[1] === 'r',
+            write: this._permissions[2] === 'w',
+            execute: this._permissions[3] === 'x'
         };
         if (!perms[action]) {
-            throw Error('Permission denied');
+            throw new Error('Permission denied');
         }
-    };
+    },
+    getType() {
+        return this._type;
+    },
+    getName() {
+        return this._name;
+    },
+    getPermissions() {
+        return this._permissions;
+    },
+    getParent() {
+        return this._parent;
+    },
+    isImmutable() {
+        return this._immutable;
+    },
+    setParent(parent) {
+        this._parent = parent;
+    },
+    setName(name) {
+        if (this._immutable) throw new Error('Permission denied');
+        this._name = name;
+    }
+};
 
-    const findItemByName = (name) => {
-        checkPermissions('execute');
-        return _contents.find(item => item.getName() === name);
-    };
 
-    const removeItemByName = (name) => {
-        checkPermissions('write');
-        const index = _contents.findIndex(item => item.getName() === name);
-        if (index !== -1) {
-            if (_contents[index].isImmutable()) throw new Error('Permission denied');
-            _contents.splice(index, 1);
-            return true;
-        } else {
-            return false;
-        }
-    };
+Dir.proto = Object.create(ItemPrototype);
 
-    const calculateLinks = () => {
+Object.assign(Dir.proto, {
+
+    findItemByName(name) {
+        this.checkPermissions('execute');
+        return this._contents.find(item => item.getName() === name);
+    },
+
+    getContents(bypass = false) {
+        if (!bypass) this.checkPermissions('read');
+        return this._contents;
+    },
+
+    getLinks() {
         let links = 2;
-        _contents.forEach(item => {
+        this._contents.forEach(item => {
             if (item.getType() === 'directory') {
                 links += 1;
             }
         });
         return links;
-    };
+    },
+
+    isEmpty() {
+        return this._contents.length === 0;
+    },
+
+    removeItemByName(name) {
+        this.checkPermissions('write');
+        const index = this._contents.findIndex(item => item.getName() === name);
+        if (index !== -1) {
+            if (this._contents[index].isImmutable()) throw new Error('Permission denied');
+            this._contents.splice(index, 1);
+            return true;
+        } else {
+            return false;
+        }
+    },
+
+    addItem(item) {
+        this.checkPermissions('write');
+        this._contents.push(item);
+        item.setParent(this);
+    }
+});
 
 
-    return {
-        getType: () => _type,
-        getName: () => _name,
-        getPermissions: () => _permissions,
-        getContents: (bypass = false) => {
-            if (!bypass) checkPermissions('read');
-            return _contents;
-        },
-        getLinks: calculateLinks,
-        getParent: () => _parent,
-        isEmpty: () => _contents.length === 0,
-        isImmutable: () => _immutable,
+function Dir(name, settings = {}, contents = []) {
+    let {
+        permissions = 'drwxr-xr-x',
+        immutable = false,
+    } = settings;
 
-        setParent: (parent) => _parent = parent,
-        setName: (name) => {
-            if (_immutable) throw new Error('Permission denied');
-            _name = name;
-        },
-        addItem: function (item) {
-            checkPermissions('write');
-            _contents.push(item);
-            item.setParent(this);
-        },
-        findItemByName,
-        removeItemByName
-    };
+    const dir = Object.create(Dir.proto);
+    dir._type = 'directory';
+    dir._name = name;
+    dir._contents = contents;
+    dir._parent = null;
+    dir._permissions = permissions;
+    dir._immutable = immutable;
+
+    return dir;
 }
 
 
+File.proto = Object.create(ItemPrototype);
+
+Object.assign(File.proto, {
+
+    getContent() {
+        this.checkPermissions('read');
+        return this._content;
+    },
+
+    getLinks() {
+        return 1;
+    },
+
+    setContent(content) {
+        if (this._immutable) throw new Error('Permission denied');
+        this.checkPermissions('write');
+        this._content = content;
+    },
+
+    appendContent(content) {
+        if (this._immutable) throw new Error('Permission denied');
+        this.checkPermissions('write');
+        this._content += content;
+    }
+});
+
+
 function File(name, settings = {}, content = '') {
-    const _type = 'file';
-    let _name = name;
-    let _content = content;
-    let _parent = null;
     let {
-        permissions: _permissions = '-rw-r--r--',
-        immutable: _immutable = false,
+        permissions = '-rw-r--r--',
+        immutable = false,
     } = settings;
 
+    const file = Object.create(File.proto);
+    file._type = 'file';
+    file._name = name;
+    file._content = content;
+    file._parent = null;
+    file._permissions = permissions;
+    file._immutable = immutable;
 
-    const checkPermissions = (action) => {
-        const perms = {
-            read: _permissions[1] === 'r',
-            write: _permissions[2] === 'w',
-            execute: _permissions[3] === 'x'
-        };
-        if (!perms[action]) {
-            throw new Error('Permission denied');
-        }
-    };
-
-
-    return {
-        getType: () => _type,
-        getName: () => _name,
-        getPermissions: () => _permissions,
-        getContent: () => {
-            checkPermissions('read');
-            return _content;
-        },
-        getLinks: () => 1,
-        getParent: () => _parent,
-        isImmutable: () => _immutable,
-
-        setParent: (parent) => _parent = parent,
-        setName: (name) => {
-            if (_immutable) throw new Error('Permission denied');
-            _name = name;
-        },
-        setContent: (content) => {
-            if (_immutable) throw new Error('Permission denied');
-            checkPermissions('write');
-            _content = content;
-        },
-        appendContent: (content) => {
-            if (_immutable) throw new Error('Permission denied');
-            checkPermissions('write');
-            _content += content;
-        }
-    };
+    return file;
 }
 
 
@@ -369,7 +383,7 @@ function FileSystem() {
 
         const sourceDirPath = sourcePath.substring(0, sourcePath.lastIndexOf('/'));
         const sourceDir = getItem(sourceDirPath);
-        if (operation === 'move' && sourceDir.getName() != destDir.getName()) {
+        if (operation === 'move' && !Object.is(sourceDir, destDir)) {
             sourceDir.removeItemByName(sourceItemName);
         }
     };
