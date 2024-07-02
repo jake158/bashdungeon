@@ -2,13 +2,11 @@ import parseArgs from './parseArgs.js';
 
 
 class CommandRegistry {
-    #fileSystem;
-    #colorize;
     #commands;
 
     constructor(fileSystem, colorize = (text) => text) {
-        this.#fileSystem = fileSystem;
-        this.#colorize = colorize;
+        this.fileSystem = fileSystem;
+        this.colorize = colorize;
         this.#commands = this.#initializeCommands();
     }
 
@@ -97,7 +95,7 @@ class CommandRegistry {
         return {
 
             'pwd': this.#command(
-                () => { return this.#fileSystem.currentDirectory; },
+                () => { return this.fileSystem.currentDirectory; },
                 { name: 'pwd' }
             ),
 
@@ -107,7 +105,7 @@ class CommandRegistry {
                         throw new Error('too many arguments');
                     }
                     const path = args.length === 1 ? args[0] : '~';
-                    this.#fileSystem.cd(path);
+                    this.fileSystem.cd(path);
                     return '';
                 },
                 { name: 'bash: cd' }
@@ -160,7 +158,7 @@ class CommandRegistry {
                     if (!arg) {
                         throw new Error('missing operand');
                     }
-                    this.#fileSystem.mkdir(arg);
+                    this.fileSystem.mkdir(arg);
                     return '';
                 },
 
@@ -175,7 +173,7 @@ class CommandRegistry {
                     if (!arg) {
                         throw new Error('missing operand');
                     }
-                    this.#fileSystem.rmdir(arg);
+                    this.fileSystem.rmdir(arg);
                     return '';
                 },
 
@@ -192,10 +190,10 @@ class CommandRegistry {
                         dir: flagMap.has('-d'),
                         all: flagMap.has('-a'),
                     };
-                    const result = this.#fileSystem.ls(arg ? arg : '.', options);
+                    const result = this.fileSystem.ls(arg ? arg : '.', options);
 
                     const formatResult = (item) => {
-                        const name = item.type === 'directory' ? this.#colorize(item.name, 'bold', 'blue') : item.name;
+                        const name = item.type === 'directory' ? this.colorize(item.name, 'bold', 'blue') : item.name;
                         if (long) {
                             return `${item.permissions} ${item.links} ${name}`;
                         } else {
@@ -211,7 +209,7 @@ class CommandRegistry {
                     if (!multipleArgsMode) {
                         return output;
                     }
-                    return `\n${arg.replace('~', this.#fileSystem.homeDirectory)}:\n${output}\n`;
+                    return `\n${arg.replace('~', this.fileSystem.homeDirectory)}:\n${output}\n`;
                 },
 
                 {
@@ -223,8 +221,8 @@ class CommandRegistry {
                     },
                     callForEachArg: true,
                     sortArgs: (a, b) => {
-                        if (this.#fileSystem.isDirectory(a) && !this.#fileSystem.isDirectory(b)) { return 1; }
-                        if (!this.#fileSystem.isDirectory(a) && this.#fileSystem.isDirectory(b)) { return -1; }
+                        if (this.fileSystem.isDirectory(a) && !this.fileSystem.isDirectory(b)) { return 1; }
+                        if (!this.fileSystem.isDirectory(a) && this.fileSystem.isDirectory(b)) { return -1; }
                         return 0;
                     }
                 }
@@ -235,7 +233,7 @@ class CommandRegistry {
                     if (!arg) {
                         return stdin;
                     }
-                    let output = this.#fileSystem.getFileContent(arg);
+                    let output = this.fileSystem.getFileContent(arg);
                     output += multipleArgsMode && output ? '\n' : '';
                     return output;
                 },
@@ -249,10 +247,10 @@ class CommandRegistry {
             'cp': this.#command(
                 (stdin, [source, dest], flagMap) => {
                     if (Array.isArray(dest)) throw new Error('multiple target directories specified');
-                    if (!flagMap.has('-r') && this.#fileSystem.isDirectory(source)) {
+                    if (!flagMap.has('-r') && this.fileSystem.isDirectory(source)) {
                         throw new Error(`-r not specified; omitting directory '${source}'`);
                     }
-                    this.#fileSystem.cp(source, dest);
+                    this.fileSystem.cp(source, dest);
                     return '';
                 },
 
@@ -271,7 +269,7 @@ class CommandRegistry {
             'mv': this.#command(
                 (stdin, [source, dest], flagMap) => {
                     if (Array.isArray(dest)) throw new Error('multiple target directories specified');
-                    this.#fileSystem.mv(source, dest);
+                    this.fileSystem.mv(source, dest);
                     return '';
                 },
 
@@ -283,6 +281,31 @@ class CommandRegistry {
                     },
                     callForEachArg: true,
                     destinationArgLocations: ['-t', '--target-directory', -1]
+                }
+            ),
+
+            // TODO: Implement prompting
+            // rm: remove write-protected regular file 'test'? (y/n)
+            'rm': this.#command(
+                (stdin, path, flagMap) => {
+                    if (this.fileSystem.isDirectory(path) && !flagMap.has('-r')) {
+                        throw new Error(`cannot remove '${path}': Is a directory`);
+                    }
+                    if (path === '.' || path === '..') {
+                        throw new Error(`refusing to remove '.' or '..' directory: skipping '${path}'`);
+                    }
+                    const output = this.fileSystem.rm(path, { force: flagMap.has('-f') });
+                    return flagMap.has('-v') ? output + '\n' : '';
+                },
+
+                {
+                    name: 'rm',
+                    flags: {
+                        '-r': 'regular',
+                        '-f': 'regular',
+                        '-v': 'regular',
+                    },
+                    callForEachArg: true,
                 }
             ),
 

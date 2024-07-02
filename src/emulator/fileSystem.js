@@ -91,8 +91,8 @@ class Dir extends Item {
         return this.#contents.find(item => item.name === name);
     }
 
-    removeItemByName(name) {
-        this.checkPermissions('write');
+    removeItemByName(name, force = false) {
+        if (!force) this.checkPermissions('write');
         const index = this.#contents.findIndex(item => item.name === name);
         if (index !== -1) {
             if (this.#contents[index].immutable) throw new Error('Permission denied');
@@ -279,7 +279,8 @@ class FileSystem {
             }
             return item.content;
         },
-        'cannot access');
+        'cannot access'
+    );
 
     ls = this.#chainErrors(
         (path, options) => {
@@ -310,7 +311,8 @@ class FileSystem {
                 return (a < b) ? -1 : (a > b) ? 1 : 0;
             });
         },
-        'cannot access');
+        'cannot access'
+    );
 
     cd = this.#chainErrors(
         (path) => {
@@ -327,7 +329,8 @@ class FileSystem {
 
             this.#previousDirectory = this.#currentDirectory;
             this.#currentDirectory = absolutePath;
-        });
+        }
+    );
 
     mkdir = this.#chainErrors(
         (path) => {
@@ -347,7 +350,8 @@ class FileSystem {
             const newDir = new Dir(dirname);
             directory.addItem(newDir);
         },
-        'cannot create directory');
+        'cannot create directory'
+    );
 
     rmdir = this.#chainErrors(
         (path) => {
@@ -365,19 +369,50 @@ class FileSystem {
             const parentDirectory = directory.parent;
             parentDirectory.removeItemByName(directory.name);
         },
-        'failed to remove');
+        'failed to remove'
+    );
 
     cp = this.#chainErrors(
         (source, dest) => {
             this.#handleItemMove(this.#evaluatePath(source), this.#evaluatePath(dest), 'copy');
         },
-        'cannot copy');
+        'cannot copy'
+    );
 
     mv = this.#chainErrors(
         (source, dest) => {
             this.#handleItemMove(this.#evaluatePath(source), this.#evaluatePath(dest), 'move');
         },
-        'cannot move');
+        'cannot move'
+    );
+
+    #rmRecurse(item, force, trace = '') {
+        if (item.permissions[2] != 'w' && !force) {
+            let notice = 'Attention: Real Bash prompts you when removing write protected files.\n';
+            notice += 'Currently, this emulator does not support prompting.\nTo remove the file, use the flag: `-f` (force).';
+            throw new Error(`${trace}${item.name} is write protected\n${notice}`)
+        }
+        let output = ``;
+
+        if (item.type === 'directory') {
+            while (item.contents.length > 0) {
+                const child = item.contents.pop();
+                output += this.#rmRecurse(child, force, `${trace + item.name}/`);
+            }
+        }
+        item.parent.removeItemByName(item.name, force);
+        output += `\nremoved ${item.type === 'directory' ? 'directory ' : ''}'${trace}${item.name}'`;
+        return output;
+    }
+
+    rm = this.#chainErrors(
+        (path, options) => {
+            const item = this.#getItem(this.#evaluatePath(path));
+            if (!item) { throw new Error('No such file or directory'); }
+            return this.#rmRecurse(item, options.force === true).trim();
+        },
+        'cannot remove'
+    );
 
 }
 
