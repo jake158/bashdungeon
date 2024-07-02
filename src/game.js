@@ -1,71 +1,70 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { BashEmulator } from './emulator/bash.js';
-import { EventEmitter } from './eventEmitter.js';
 import { colorize, print, ascii } from './utils.js';
 
 
-function Game() {
-    const terminal = new Terminal({
-        fontSize: 17,
-        fontFamily: 'Ubuntu Mono, courier-new, courier, monospace',
-        cursorBlink: true,
-        convertEol: true
-    });
-    terminal.open(document.getElementById('terminal'));
+class Game {
+    constructor(terminalElement) {
+        this.terminal = new Terminal({
+            fontSize: 17,
+            fontFamily: 'Ubuntu Mono, courier-new, courier, monospace',
+            cursorBlink: true,
+            convertEol: true
+        });
+        this.terminal.open(terminalElement);
 
-    const fitAddon = new FitAddon();
-    terminal.loadAddon(fitAddon);
-    fitAddon.fit();
-    window.addEventListener('resize', () => fitAddon.fit());
+        this.fitAddon = new FitAddon();
+        this.terminal.loadAddon(this.fitAddon);
+        this.fitAddon.fit();
+        window.addEventListener('resize', () => this.fitAddon.fit());
 
-    const eventEmitter = EventEmitter();
-    const bash = BashEmulator(eventEmitter, colorize);
-    let commandBuffer = '';
-    let cursorRow = 0;
+        this.bash = new BashEmulator(() => this.terminal.reset(), colorize);
+        this.commandBuffer = '';
+        this.cursorRow = 0;
+    }
 
-    // This does not work
-    // When cursor reaches x=0 on line, it doesn't go up a line
-    // I am very tired of this terminal so I will ignore it for now
-    const clearInput = () => {
-        for (let i = 0; i < commandBuffer.length; i++) {
-            terminal.write('\b \b');
+    // Improve this
+    clearInput() {
+        for (let i = 0; i < this.commandBuffer.length; i++) {
+            this.terminal.write('\b \b');
         }
-    };
+    }
 
-    terminal.onData(e => {
+    handleData(e) {
+        const { terminal, bash } = this;
         switch (e) {
+
             // Enter
             case '\r':
-                const result = bash.execute(commandBuffer);
+                const result = bash.execute(this.commandBuffer);
                 print(terminal, result);
                 print(terminal, bash.getPrompt());
-                commandBuffer = '';
-                cursorRow = 0;
+                this.commandBuffer = '';
+                this.cursorRow = 0;
                 break;
 
             // Backspace
             case '\u007F':
-                if (commandBuffer.length > 0 && terminal.buffer.active.cursorX != 0) {
-                    commandBuffer = commandBuffer.slice(0, -1);
+                if (this.commandBuffer.length > 0 && terminal.buffer.active.cursorX != 0) {
+                    this.commandBuffer = this.commandBuffer.slice(0, -1);
                     terminal.write('\b \b');
-                }
-                else if (terminal.buffer.active.cursorX == 0) {
-                    commandBuffer = commandBuffer.slice(0, -1);
+                } else if (terminal.buffer.active.cursorX == 0) {
+                    this.commandBuffer = this.commandBuffer.slice(0, -1);
                     terminal.write('\x1b[A');
                     terminal.write(`\x1b[${terminal.cols}C`);
                     terminal.write('\b \b');
-                    cursorRow--;
+                    this.cursorRow--;
                 }
                 break;
 
             // Tab
             case '\t':
-                const completion = bash.tabComplete(commandBuffer);
+                const completion = bash.tabComplete(this.commandBuffer);
                 if (completion) {
-                    clearInput();
-                    commandBuffer = completion;
-                    terminal.write(commandBuffer);
+                    this.clearInput();
+                    this.commandBuffer = completion;
+                    terminal.write(this.commandBuffer);
                 }
                 break;
 
@@ -73,9 +72,9 @@ function Game() {
             case '\x1b[A':
                 const upCommand = bash.historyUp();
                 if (upCommand) {
-                    clearInput();
-                    commandBuffer = upCommand;
-                    terminal.write(commandBuffer);
+                    this.clearInput();
+                    this.commandBuffer = upCommand;
+                    terminal.write(this.commandBuffer);
                 }
                 break;
 
@@ -83,9 +82,9 @@ function Game() {
             case '\x1b[B':
                 const downCommand = bash.historyDown();
                 if (downCommand) {
-                    clearInput();
-                    commandBuffer = downCommand;
-                    terminal.write(commandBuffer);
+                    this.clearInput();
+                    this.commandBuffer = downCommand;
+                    terminal.write(this.commandBuffer);
                 }
                 break;
 
@@ -96,23 +95,23 @@ function Game() {
 
             default:
                 if (terminal.buffer.active.cursorX === terminal.cols - 1) {
-                    cursorRow += 1;
+                    this.cursorRow += 1;
                     terminal.write('\x1b[B');
                     terminal.write('\x1b[1000D');
                 }
-                commandBuffer += e;
+                this.commandBuffer += e;
                 terminal.write(e);
         }
-    });
+    }
 
-    eventEmitter.on('clear', () => terminal.reset());
+    start() {
+        this.terminal.write(ascii.welcome);
+        print(this.terminal, this.bash.getPrompt());
+        this.terminal.onData(e => this.handleData(e));
+        this.terminal.focus();
+    }
 
-    print(terminal, ascii.welcome, false, false);
-    print(terminal, bash.getPrompt());
-    terminal.focus();
 }
 
 
-window.addEventListener("DOMContentLoaded", (e) => {
-    Game();
-});
+export default Game;

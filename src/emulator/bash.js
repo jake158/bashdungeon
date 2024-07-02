@@ -1,26 +1,37 @@
 import { FileSystem } from './fileSystem.js';
 import { CommandRegistry } from './commands.js';
 
-function BashEmulator(eventEmitter, colorize = (text) => text) {
-    const fileSystem = new FileSystem();
-    const commandRegistry = CommandRegistry(fileSystem, colorize);
-    const history = [];
-    let historyIndex = 0;
 
-    const pushToHistory = (command) => {
-        historyIndex = history.length;
-        if (command != history[history.length - 1]) {
-            history.push(command);
-            historyIndex = history.length;
+class BashEmulator {
+    #fileSystem;
+    #commandRegistry;
+    #history;
+    #historyIndex;
+    #colorize;
+
+    constructor(clearTerminal = () => '', colorize = (text) => text) {
+        this.#fileSystem = new FileSystem();
+        this.#commandRegistry = new CommandRegistry(this.#fileSystem, colorize);
+        this.#history = [];
+        this.#historyIndex = 0;
+        this.#colorize = colorize;
+
+        this.#commandRegistry.set('clear', clearTerminal);
+        this.#commandRegistry.set('history', () => this.#history.map((line, index) => ` ${index + 1}  ${line}`).join('\n'));
+    }
+
+    #pushToHistory(command) {
+        this.#historyIndex = this.#history.length;
+        if (command !== this.#history[this.#history.length - 1]) {
+            this.#history.push(command);
+            this.#historyIndex = this.#history.length;
         }
-    };
+    }
 
-    const parseAndExecute = (input) => {
-
+    #parseAndExecute(input) {
         const executeCommand = (command, stdin = '') => {
             const [commandName, ...args] = command.trim().split(/\s+/);
-            const commandFunc = commandRegistry.get(commandName);
-            eventEmitter.emit(commandName);
+            const commandFunc = this.#commandRegistry.get(commandName);
 
             if (commandFunc) {
                 return commandFunc(args, stdin);
@@ -30,7 +41,7 @@ function BashEmulator(eventEmitter, colorize = (text) => text) {
         };
 
         const regex = /\|\||\||&&|&>|&|;|<>|<|2>>|2>|>>/g;
-        const commands = input.split(regex).map(cmd => cmd.trim()).filter(cmd => cmd != '');
+        const commands = input.split(regex).map(cmd => cmd.trim()).filter(cmd => cmd !== '');
         const operators = input.match(regex) || [];
         operators.unshift(';');
 
@@ -46,13 +57,13 @@ function BashEmulator(eventEmitter, colorize = (text) => text) {
                 case '||':
                     if (!result.stderr) { break pipeline; }
                     result = executeCommand(commands[i]);
-                    break
+                    break;
                 case '&&':
                     if (result.stderr) { break pipeline; }
                     result = executeCommand(commands[i]);
-                    break
+                    break;
                 case '|':
-                    !result.stderr ? outputStream.pop() : '';
+                    if (!result.stderr) outputStream.pop();
                     result = executeCommand(commands[i], result.stdout);
                     break;
                 case '2>':
@@ -71,54 +82,45 @@ function BashEmulator(eventEmitter, colorize = (text) => text) {
             }
         }
         return outputStream;
-    };
+    }
 
-    const execute = (input) => {
+    execute(input) {
         if (!/\S/.test(input)) {
             return '';
         }
-        pushToHistory(input);
-        const outputStream = parseAndExecute(input);
+        this.#pushToHistory(input);
+        const outputStream = this.#parseAndExecute(input);
         return outputStream.join('\n');
-    };
+    }
 
-    const historyUp = () => {
-        if (historyIndex > 0) {
-            historyIndex--;
-            return history[historyIndex];
+    historyUp() {
+        if (this.#historyIndex > 0) {
+            this.#historyIndex--;
+            return this.#history[this.#historyIndex];
         } else {
             return '';
         }
-    };
+    }
 
-    const historyDown = () => {
-        if (historyIndex < history.length - 1) {
-            historyIndex++;
-            return history[historyIndex];
+    historyDown() {
+        if (this.#historyIndex < this.#history.length - 1) {
+            this.#historyIndex++;
+            return this.#history[this.#historyIndex];
         } else {
-            return ''
+            return '';
         }
-    };
+    }
 
-    const tabComplete = (input) => {
+    tabComplete(input) {
         // TODO: Implement
         return input;
-    };
+    }
 
-    const getPrompt = () => {
+    getPrompt() {
         const userAtHost = 'wizard@dungeon';
-        const displayDirectory = fileSystem.currentDirectory.replace(fileSystem.homeDirectory, '~');
-        return `${colorize(userAtHost, 'bold', 'green')}:${colorize(displayDirectory, 'bold', 'blue')}$ `;
-    };
-
-
-    return {
-        execute,
-        historyUp,
-        historyDown,
-        tabComplete,
-        getPrompt
-    };
+        const displayDirectory = this.#fileSystem.currentDirectory.replace(this.#fileSystem.homeDirectory, '~');
+        return `${this.#colorize(userAtHost, 'bold', 'green')}:${this.#colorize(displayDirectory, 'bold', 'blue')}$ `;
+    }
 }
 
 

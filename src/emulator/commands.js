@@ -1,9 +1,18 @@
-import { parseArgs } from './argParser.js';
+import parseArgs from './parseArgs.js';
 
 
-function CommandRegistry(fileSystem, colorize = (text) => text) {
+class CommandRegistry {
+    #fileSystem;
+    #colorize;
+    #commands;
 
-    const popDestinationArg = (positionalArgs, flagMap, destinationArgs) => {
+    constructor(fileSystem, colorize = (text) => text) {
+        this.#fileSystem = fileSystem;
+        this.#colorize = colorize;
+        this.#commands = this.#initializeCommands();
+    }
+
+    #popDestinationArg(positionalArgs, flagMap, destinationArgs) {
         let dest = null;
 
         for (let destArg of destinationArgs) {
@@ -19,10 +28,10 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
             }
         }
         return dest;
-    };
+    }
 
-    const executeMultipleArgs = (func, stdin, positionalArgs, flagMap, name, destinationArgs, sortArgs) => {
-        const dest = destinationArgs ? popDestinationArg(positionalArgs, flagMap, destinationArgs) : null;
+    #executeMultipleArgs(func, stdin, positionalArgs, flagMap, name, destinationArgs, sortArgs) {
+        const dest = destinationArgs ? this.#popDestinationArg(positionalArgs, flagMap, destinationArgs) : null;
 
         if (destinationArgs && !dest || destinationArgs && positionalArgs.length === 0) {
             const error = positionalArgs.length > 0
@@ -42,7 +51,7 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
                     stdin,
                     destinationArgs ? [arg, dest] : arg,
                     flagMap,
-                    positionalArgs.length > 1 ? true : false
+                    positionalArgs.length > 1
                 );
             }
             catch (error) {
@@ -50,9 +59,9 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
             }
         }
         return { stdin: '', stdout: stdout.trim(), stderr: stderr.trim() };
-    };
+    }
 
-    const command = (func, settings = {}) => {
+    #command(func, settings = {}) {
         const {
             name = 'unnamed command',
             flags = {},
@@ -61,15 +70,12 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
             sortArgs = null
         } = settings;
 
-        return function (args, stdin) {
+        return (args, stdin) => {
             try {
-                const {
-                    positionalArgs,
-                    flagMap
-                } = parseArgs(args, flags);
+                const { positionalArgs, flagMap } = parseArgs(args, flags);
 
                 if (callForEachArg) {
-                    return executeMultipleArgs(
+                    return this.#executeMultipleArgs(
                         func,
                         stdin,
                         positionalArgs,
@@ -85,221 +91,212 @@ function CommandRegistry(fileSystem, colorize = (text) => text) {
                 return { stdin: '', stdout: '', stderr: `${name}: ${error.message}` };
             }
         };
-    };
+    }
+
+    #initializeCommands() {
+        return {
+
+            'pwd': this.#command(
+                () => { return this.#fileSystem.currentDirectory; },
+                { name: 'pwd' }
+            ),
+
+            'cd': this.#command(
+                (stdin, args) => {
+                    if (args.length > 1) {
+                        throw new Error('too many arguments');
+                    }
+                    const path = args.length === 1 ? args[0] : '~';
+                    this.#fileSystem.cd(path);
+                    return '';
+                },
+                { name: 'bash: cd' }
+            ),
 
 
-    // TODO:
-    // 1. Improve wrapper: --help entry for each command
+            // executeMultipleArgs calls each of these individually for each positional arg
 
-    // 2. Cleaning, refactoring
+            'echo': this.#command(
+                (stdin, arg, flagMap) => {
+                    const processEscapeSequences = (input) => {
+                        return input.replace(/\\n/g, '\n')
+                            .replace(/\\t/g, '\t')
+                            .replace(/\\r/g, '\r')
+                            .replace(/\\f/g, '\f')
+                            .replace(/\\b/g, '\b')
+                            .replace(/\\v/g, '\v')
+                            .replace(/\\'/g, "'")
+                            .replace(/\\"/g, '"')
+                            .replace(/\\\\/g, '\\');
+                    };
+                    let processEscapes = false;
 
+                    for (const [flag, _] of flagMap.entries()) {
+                        switch (flag) {
+                            case '-e':
+                                processEscapes = true;
+                                break;
+                            case '-E':
+                                processEscapes = false;
+                        }
+                    }
 
-    const commands = {
+                    const str = arg ? arg : ' ';
+                    return processEscapes ? processEscapeSequences(str) + ' ' : str + ' ';
+                },
 
-        // These commands take no positional arguments
-
-        'clear': command(
-            // Handled by terminal using eventEmitter
-            () => { return ''; },
-            { name: 'clear' }
-        ),
-
-        'pwd': command(
-            () => { return fileSystem.currentDirectory; },
-            { name: 'pwd' }
-        ),
-
-
-        // These commands take a fixed number of positional arguments
-
-        'cd': command(
-            (stdin, args, flagMap) => {
-                if (args.length > 1) {
-                    throw new Error('too many arguments');
+                {
+                    name: 'echo',
+                    flags: {
+                        '-e': 'regular',
+                        '-E': 'regular',
+                    },
+                    callForEachArg: true
                 }
-                const path = args.length === 1 ? args[0] : '~';
-                fileSystem.cd(path);
-                return '';
-            },
+            ),
 
-            {
-                name: 'bash: cd',
-            }
-        ),
+            'mkdir': this.#command(
+                (stdin, arg) => {
+                    if (!arg) {
+                        throw new Error('missing operand');
+                    }
+                    this.#fileSystem.mkdir(arg);
+                    return '';
+                },
 
+                {
+                    name: 'mkdir',
+                    callForEachArg: true
+                }
+            ),
 
-        // These commands take any number of positional arguments
+            'rmdir': this.#command(
+                (stdin, arg) => {
+                    if (!arg) {
+                        throw new Error('missing operand');
+                    }
+                    this.#fileSystem.rmdir(arg);
+                    return '';
+                },
 
-        'echo': command(
-            (stdin, arg, flagMap) => {
-                const processEscapeSequences = (input) => {
-                    return input.replace(/\\n/g, '\n')
-                        .replace(/\\t/g, '\t')
-                        .replace(/\\r/g, '\r')
-                        .replace(/\\f/g, '\f')
-                        .replace(/\\b/g, '\b')
-                        .replace(/\\v/g, '\v')
-                        .replace(/\\'/g, "'")
-                        .replace(/\\"/g, '"')
-                        .replace(/\\\\/g, '\\');
-                };
-                let processEscapes = false;
+                {
+                    name: 'rmdir',
+                    callForEachArg: true
+                }
+            ),
 
-                for (const [flag, _] of flagMap.entries()) {
-                    switch (flag) {
-                        case '-e':
-                            processEscapes = true;
-                            break;
-                        case '-E':
-                            processEscapes = false;
+            'ls': this.#command(
+                (stdin, arg, flagMap, multipleArgsMode = false) => {
+                    const long = flagMap.has('-l');
+                    const options = {
+                        dir: flagMap.has('-d'),
+                        all: flagMap.has('-a'),
+                    };
+                    const result = this.#fileSystem.ls(arg ? arg : '.', options);
+
+                    const formatResult = (item) => {
+                        const name = item.type === 'directory' ? this.#colorize(item.name, 'bold', 'blue') : item.name;
+                        if (long) {
+                            return `${item.permissions} ${item.links} ${name}`;
+                        } else {
+                            return name;
+                        }
+                    };
+
+                    if (!Array.isArray(result)) {
+                        return formatResult(result) + (multipleArgsMode && long ? '\n' : '  ');
+                    }
+
+                    const output = result.map(formatResult).join(long ? '\n' : '  ');
+                    if (!multipleArgsMode) {
+                        return output;
+                    }
+                    return `\n${arg.replace('~', this.#fileSystem.homeDirectory)}:\n${output}\n`;
+                },
+
+                {
+                    name: 'ls',
+                    flags: {
+                        '-l': 'regular',
+                        '-d': 'regular',
+                        '-a': 'regular',
+                    },
+                    callForEachArg: true,
+                    sortArgs: (a, b) => {
+                        if (this.#fileSystem.isDirectory(a) && !this.#fileSystem.isDirectory(b)) { return 1; }
+                        if (!this.#fileSystem.isDirectory(a) && this.#fileSystem.isDirectory(b)) { return -1; }
+                        return 0;
                     }
                 }
+            ),
 
-                const str = arg ? arg : ' ';
-                return processEscapes ? processEscapeSequences(str) + ' ' : str + ' ';
-            },
-
-            {
-                name: 'echo',
-                flags: {
-                    '-e': 'regular',
-                    '-E': 'regular',
+            'cat': this.#command(
+                (stdin, arg, flagMap, multipleArgsMode = false) => {
+                    if (!arg) {
+                        return stdin;
+                    }
+                    let output = this.#fileSystem.getFileContent(arg);
+                    output += multipleArgsMode && output ? '\n' : '';
+                    return output;
                 },
-                callForEachArg: true
-            }
-        ),
 
-        'mkdir': command(
-            (stdin, arg, flagMap) => {
-                if (!arg) {
-                    throw new Error('missing operand');
+                {
+                    name: 'cat',
+                    callForEachArg: true
                 }
-                fileSystem.mkdir(arg);
-                return '';
-            },
+            ),
 
-            {
-                name: 'mkdir',
-                callForEachArg: true
-            }
-        ),
-
-        'rmdir': command(
-            (stdin, arg, flagMap) => {
-                if (!arg) {
-                    throw new Error('missing operand');
-                }
-                fileSystem.rmdir(arg);
-                return '';
-            },
-
-            {
-                name: 'rmdir',
-                callForEachArg: true
-            }
-        ),
-
-        'ls': command(
-            // Implement -l
-            (stdin, arg, flagMap, multipleArgsMode = false) => {
-                const long = flagMap.has('-l');
-                const options = {
-                    dir: flagMap.has('-d'),
-                    all: flagMap.has('-a'),
-                }
-                const result = fileSystem.ls(arg ? arg : '.', options);
-
-                const formatResult = (item) => {
-                    const name = item.type === 'directory' ? colorize(item.name, 'bold', 'blue') : item.name;
-                    if (long) { return `${item.permissions} ${item.links} ${name}`; }
-                    else { return name; }
-                }
-
-                if (!Array.isArray(result)) {
-                    return formatResult(result) + (multipleArgsMode && long ? '\n' : '  ');
-                }
-
-                const output = result.map(formatResult).join(long ? '\n' : '  ');
-                if (!multipleArgsMode) { return output; }
-                return `\n${arg.replace('~', fileSystem.homeDirectory)}:\n${output}\n`;
-            },
-
-            {
-                name: 'ls',
-                flags: {
-                    '-l': 'regular',
-                    '-d': 'regular',
-                    '-a': 'regular',
+            'cp': this.#command(
+                (stdin, [source, dest], flagMap) => {
+                    if (Array.isArray(dest)) throw new Error('multiple target directories specified');
+                    if (!flagMap.has('-r') && this.#fileSystem.isDirectory(source)) {
+                        throw new Error(`-r not specified; omitting directory '${source}'`);
+                    }
+                    this.#fileSystem.cp(source, dest);
+                    return '';
                 },
-                callForEachArg: true,
-                sortArgs: (a, b) => {
-                    if (fileSystem.isDirectory(a) && !fileSystem.isDirectory(b)) { return 1; }
-                    if (!fileSystem.isDirectory(a) && fileSystem.isDirectory(b)) { return -1; }
-                    return 0;
+
+                {
+                    name: 'cp',
+                    flags: {
+                        '-t': 'argument',
+                        '--target-directory': 'argument',
+                        '-r': 'regular'
+                    },
+                    callForEachArg: true,
+                    destinationArgLocations: ['-t', '--target-directory', -1]
                 }
-            }
-        ),
+            ),
 
-        'cat': command(
-            (stdin, arg, flagMap, multipleArgsMode = false) => {
-                if (!arg) {
-                    return stdin;
+            'mv': this.#command(
+                (stdin, [source, dest], flagMap) => {
+                    if (Array.isArray(dest)) throw new Error('multiple target directories specified');
+                    this.#fileSystem.mv(source, dest);
+                    return '';
+                },
+
+                {
+                    name: 'mv',
+                    flags: {
+                        '-t': 'argument',
+                        '--target-directory': 'argument',
+                    },
+                    callForEachArg: true,
+                    destinationArgLocations: ['-t', '--target-directory', -1]
                 }
-                let output = fileSystem.getFileContent(arg);
-                output += multipleArgsMode && output ? '\n' : '';
-                return output;
-            },
+            ),
 
-            {
-                name: 'cat',
-                callForEachArg: true
-            }
-        ),
+        };
+    }
 
-        'cp': command(
-            // Implement: merging -t and --target-directory arrays?
-            (stdin, [source, dest], flagMap) => {
-                if (Array.isArray(dest)) throw new Error('multiple target directories specified');
-                if (!flagMap.has('-r') && fileSystem.isDirectory(source)) { throw new Error(`-r not specified; omitting directory '${source}'`); }
-                fileSystem.cp(source, dest);
-                return '';
-            },
+    get(name) {
+        return this.#commands[name];
+    }
 
-            {
-                name: 'cp',
-                flags: {
-                    '-t': 'argument',
-                    '--target-directory': 'argument',
-                    '-r': 'regular'
-                },
-                callForEachArg: true,
-                destinationArgLocations: ['-t', '--target-directory', -1]
-            }
-        ),
+    set(name, callback) {
+        this.#commands[name] = this.#command(callback, { name });
+    }
 
-        'mv': command(
-            (stdin, [source, dest], flagMap) => {
-                if (Array.isArray(dest)) throw new Error('multiple target directories specified');
-                fileSystem.mv(source, dest);
-                return '';
-            },
-
-            {
-                name: 'mv',
-                flags: {
-                    '-t': 'argument',
-                    '--target-directory': 'argument',
-                },
-                callForEachArg: true,
-                destinationArgLocations: ['-t', '--target-directory', -1]
-            }
-        ),
-    };
-
-
-    return {
-        get: (name) => commands[name]
-    };
 }
 
 

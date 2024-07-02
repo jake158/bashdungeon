@@ -52,6 +52,7 @@ class Item {
 
     set name(name) {
         if (this.#immutable) throw new Error('Permission denied');
+        this.#parent.checkPermissions('write');
         this.#name = name;
     }
 }
@@ -161,7 +162,7 @@ class FileSystem {
                         new File('unreadable.txt', { content: 'unreadable yo', permissions: '--wx------' }),
                         new Dir('noexecute', { permissions: 'drw-------' }),
                         new Dir('noread', { permissions: 'd-wx------' }),
-                        new Dir('nowrite', { permissions: 'dr-x------' })
+                        new Dir('nowrite', { permissions: 'dr-x------' }, [new File('denied')])
                     ])
                 ])
             ])
@@ -226,7 +227,7 @@ class FileSystem {
         }
 
         const copyItem = (item) => item.type === 'file'
-            ? new File(item.name, { permissions: item.permissions }, item.content)
+            ? new File(item.name, { content: item.content, permissions: item.permissions })
             : new Dir(item.name, { permissions: item.permissions }, item.contents.map(copyItem));
 
         const newItem = (operation === 'copy') ? copyItem(sourceItem) : sourceItem;

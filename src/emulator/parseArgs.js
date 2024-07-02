@@ -88,4 +88,4 @@ const parseArgs = (args, flags) => {
 };
 
 
-export { parseArgs };
+export default parseArgs;
