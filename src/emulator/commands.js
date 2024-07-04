@@ -103,6 +103,22 @@ class CommandRegistry {
                 { name: 'bash: cd' }
             ),
 
+            'umask': this.#command(
+                (stdin, args) => {
+                    if (args.length > 1) {
+                        throw new Error('too many arguments');
+                    }
+                    else if (args.length === 0) {
+                        return this.fileSystem.umask;
+                    }
+                    else {
+                        this.fileSystem.umask = args[0];
+                    }
+                    return '';
+                },
+                { name: 'umask' }
+            ),
+
             'chmod': this.#command(
                 (stdin, args, flagMap) => {
                     let flagPerms = ''

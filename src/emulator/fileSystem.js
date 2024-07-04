@@ -66,7 +66,7 @@ class Item {
 class Dir extends Item {
     #contents;
 
-    constructor(name, { permissions = 'drwxr-xr-x', immutable = false } = {}, contents = []) {
+    constructor(name, { permissions = 'drwxrwxr-x', immutable = false } = {}, contents = []) {
         super(name, { type: 'directory', permissions, immutable });
         this.#contents = contents;
         contents.forEach(item => item.parent = this);
@@ -119,7 +119,7 @@ class Dir extends Item {
 class File extends Item {
     #content;
 
-    constructor(name, { content = '', permissions = '-rw-r--r--', immutable = false } = {}) {
+    constructor(name, { content = '', permissions = '-rw-rw-r--', immutable = false } = {}) {
         super(name, { type: 'file', permissions, immutable });
         this.#content = content;
     }
@@ -147,15 +147,48 @@ class File extends Item {
 }
 
 
+function permsToOctal(perms) {
+    const permissionBits = { 'r': 4, 'w': 2, 'x': 1, '-': 0 };
+    let octal = '';
+
+    for (let i = 1; i < perms.length; i += 3) {
+        let value = 0;
+        value += permissionBits[perms[i]];
+        value += permissionBits[perms[i + 1]];
+        value += permissionBits[perms[i + 2]];
+        octal += value.toString(8);
+    }
+
+    return octal;
+}
+
+function octalToPerms(octal, isDirectory = false) {
+    const permissionChars = { 4: 'r', 2: 'w', 1: 'x', 0: '-' };
+    const typeChar = isDirectory ? 'd' : '-';
+    let perms = typeChar;
+
+    for (let i = 0; i < octal.length; i++) {
+        let value = parseInt(octal[i], 8);
+        perms += permissionChars[(value & 4)];
+        perms += permissionChars[(value & 2)];
+        perms += permissionChars[(value & 1)];
+    }
+
+    return perms;
+}
+
+
 class FileSystem {
     #homeDirectory;
     #currentDirectory;
     #previousDirectory;
+    #umask;
 
     constructor() {
         this.#homeDirectory = '/home/wizard';
         this.#currentDirectory = `${this.#homeDirectory}/Dungeon`;
         this.#previousDirectory = this.#currentDirectory;
+        this.#umask = '0002';
 
         this.tree = new Dir('/', { immutable: true }, [
             new Dir('home', { immutable: true }, [
@@ -174,6 +207,23 @@ class FileSystem {
         ]);
 
         this.tree.parent = this.tree;
+    }
+
+    get umask() {
+        return this.#umask;
+    }
+
+    set umask(value) {
+        if (!/(^[0-7]{3}$)|(^0{1}[0-7]{3}$)/.test(value)) {
+            throw new Error('value must be of the format: 0?[0-7][0-7][0-7]');
+        }
+        this.#umask = value.padStart(4, '0');
+    }
+
+    #applyUmask(permissions) {
+        const permOctal = permsToOctal(permissions);
+        const result = permOctal - this.#umask;
+        return octalToPerms(result.toString().padStart(3, '0'), permissions[0] === 'd');
     }
 
     #evaluatePath(path) {
@@ -352,7 +402,7 @@ class FileSystem {
                 throw new Error('File exists');
             }
 
-            const newDir = new Dir(dirname);
+            const newDir = new Dir(dirname, { permissions: this.#applyUmask('drwxrwxrwx') });
             directory.addItem(newDir);
         },
         'cannot create directory'
