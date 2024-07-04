@@ -55,6 +55,11 @@ class Item {
         this.#parent.checkPermissions('write');
         this.#name = name;
     }
+
+    set permissions(permissions) {
+        if (this.#immutable) throw new Error('Permission denied');
+        this.#permissions = permissions;
+    }
 }
 
 
@@ -412,6 +417,47 @@ class FileSystem {
             return this.#rmRecurse(item, options.force === true).trim();
         },
         'cannot remove'
+    );
+
+    #parseChmodString(string, currentPermissions) {
+        const parts = string.split(',').filter(Boolean);
+        const regex = /([ugoa]*)([+\-=])([ugo]{1}|[rwxXst]*)/g;
+        let permissions = currentPermissions.split('');
+
+        // Detect octal here
+        // UMASK!
+
+        for (const part of parts) {
+            let match;
+            let prev = null;
+            let consumedLength = 0;
+
+            while ((match = regex.exec(part)) !== null) {
+                let [fullMatch, groups, operator, perms] = match;
+                groups = prev || groups || 'a';
+                prev = groups;
+
+                console.log(`groups to change: '${groups}', operator: '${operator}', perms: '${perms}'`);
+
+                // Process here
+                // UMASK!
+
+                consumedLength += fullMatch.length;
+            }
+
+            if (consumedLength !== part.length) {
+                throw new Error(`invalid mode: '${part}'`);
+            }
+        }
+        return permissions.join('');
+    }
+
+    chmod = this.#chainErrors(
+        (path, permString) => {
+            const item = this.#getItem(this.#evaluatePath(path));
+            if (!item) { throw new Error('No such file or directory'); }
+            item.permissions = this.#parseChmodString(permString, item.permissions);
+        }
     );
 
 }
