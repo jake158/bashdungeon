@@ -30,19 +30,11 @@ class CommandRegistry {
 
     #executeMultipleArgs(func, stdin, positionalArgs, flagMap, name, destinationArgs, sortArgs) {
         const dest = destinationArgs ? this.#popDestinationArg(positionalArgs, flagMap, destinationArgs) : null;
-
-        if (destinationArgs && !dest || destinationArgs && positionalArgs.length === 0) {
-            const error = positionalArgs.length > 0
-                ? `missing destination operand after '${positionalArgs.pop()}'`
-                : 'missing operand';
-            throw new Error(error);
-        }
-
-        let stdout = '';
-        let stderr = '';
         if (sortArgs) { positionalArgs.sort(sortArgs); }
         if (positionalArgs.length === 0) { positionalArgs.push(null); }
 
+        let stdout = '';
+        let stderr = '';
         for (let arg of positionalArgs) {
             try {
                 stdout += func(
@@ -111,6 +103,37 @@ class CommandRegistry {
                 { name: 'bash: cd' }
             ),
 
+            'chmod': this.#command(
+                (stdin, args, flagMap) => {
+                    let flagPerms = ''
+                    flagPerms += flagMap.has('-r') ? '-r' : '';
+                    flagPerms += flagMap.has('-w') ? '-w' : '';
+                    flagPerms += flagMap.has('-x') ? '-x' : '';
+
+                    if (flagPerms.length !== 0 && args.length < 1 || flagPerms.length === 0 && args.length < 2) {
+                        const error = args.length === 1
+                            ? `missing operand after '${args[0]}'`
+                            : 'missing operand';
+                        throw new Error(error);
+                    }
+
+                    for (let i = flagPerms ? 0 : 1; i < args.length; i++) {
+                        this.fileSystem.chmod(args[i], flagPerms ? flagPerms : args[0]);
+                    }
+                    return '';
+                },
+
+                // Add: -R
+                {
+                    name: 'chmod',
+                    flags: {
+                        '-r': 'regular',
+                        '-w': 'regular',
+                        '-x': 'regular',
+                    },
+                }
+            ),
+
 
             // executeMultipleArgs calls each of these individually for each positional arg
 
@@ -123,8 +146,6 @@ class CommandRegistry {
                             .replace(/\\f/g, '\f')
                             .replace(/\\b/g, '\b')
                             .replace(/\\v/g, '\v')
-                            .replace(/\\'/g, "'")
-                            .replace(/\\"/g, '"')
                             .replace(/\\\\/g, '\\');
                     };
                     let processEscapes = false;
@@ -149,6 +170,22 @@ class CommandRegistry {
                         '-e': 'regular',
                         '-E': 'regular',
                     },
+                    callForEachArg: true
+                }
+            ),
+
+            'cat': this.#command(
+                (stdin, arg, flagMap, multipleArgsMode = false) => {
+                    if (!arg) {
+                        return stdin;
+                    }
+                    let output = this.fileSystem.getFileContent(arg);
+                    output += multipleArgsMode && output ? '\n' : '';
+                    return output;
+                },
+
+                {
+                    name: 'cat',
                     callForEachArg: true
                 }
             ),
@@ -180,6 +217,31 @@ class CommandRegistry {
                 {
                     name: 'rmdir',
                     callForEachArg: true
+                }
+            ),
+
+            // TODO: Implement prompting
+            // rm: remove write-protected regular file 'test'? (y/n)
+            'rm': this.#command(
+                (stdin, arg, flagMap) => {
+                    if (this.fileSystem.isDirectory(arg) && !flagMap.has('-r')) {
+                        throw new Error(`cannot remove '${arg}': Is a directory`);
+                    }
+                    if (arg === '.' || arg === '..') {
+                        throw new Error(`refusing to remove '.' or '..' directory: skipping '${arg}'`);
+                    }
+                    const output = this.fileSystem.rm(arg, { force: flagMap.has('-f') });
+                    return flagMap.has('-v') ? output + '\n' : '';
+                },
+
+                {
+                    name: 'rm',
+                    flags: {
+                        '-r': 'regular',
+                        '-f': 'regular',
+                        '-v': 'regular',
+                    },
+                    callForEachArg: true,
                 }
             ),
 
@@ -228,25 +290,17 @@ class CommandRegistry {
                 }
             ),
 
-            'cat': this.#command(
-                (stdin, arg, flagMap, multipleArgsMode = false) => {
-                    if (!arg) {
-                        return stdin;
-                    }
-                    let output = this.fileSystem.getFileContent(arg);
-                    output += multipleArgsMode && output ? '\n' : '';
-                    return output;
-                },
-
-                {
-                    name: 'cat',
-                    callForEachArg: true
-                }
-            ),
-
             'cp': this.#command(
                 (stdin, [source, dest], flagMap) => {
-                    if (Array.isArray(dest)) throw new Error('multiple target directories specified');
+                    if (!dest || !source) {
+                        const error = source
+                            ? `missing destination file operand after '${source}'`
+                            : 'missing file operand';
+                        throw new Error(error);
+                    }
+                    if (Array.isArray(dest)) {
+                        throw new Error('multiple target directories specified')
+                    }
                     if (!flagMap.has('-r') && this.fileSystem.isDirectory(source)) {
                         throw new Error(`-r not specified; omitting directory '${source}'`);
                     }
@@ -268,7 +322,15 @@ class CommandRegistry {
 
             'mv': this.#command(
                 (stdin, [source, dest], flagMap) => {
-                    if (Array.isArray(dest)) throw new Error('multiple target directories specified');
+                    if (!dest || !source) {
+                        const error = source
+                            ? `missing destination file operand after '${source}'`
+                            : 'missing file operand';
+                        throw new Error(error);
+                    }
+                    if (Array.isArray(dest)) {
+                        throw new Error('multiple target directories specified')
+                    }
                     this.fileSystem.mv(source, dest);
                     return '';
                 },
@@ -281,31 +343,6 @@ class CommandRegistry {
                     },
                     callForEachArg: true,
                     destinationArgLocations: ['-t', '--target-directory', -1]
-                }
-            ),
-
-            // TODO: Implement prompting
-            // rm: remove write-protected regular file 'test'? (y/n)
-            'rm': this.#command(
-                (stdin, path, flagMap) => {
-                    if (this.fileSystem.isDirectory(path) && !flagMap.has('-r')) {
-                        throw new Error(`cannot remove '${path}': Is a directory`);
-                    }
-                    if (path === '.' || path === '..') {
-                        throw new Error(`refusing to remove '.' or '..' directory: skipping '${path}'`);
-                    }
-                    const output = this.fileSystem.rm(path, { force: flagMap.has('-f') });
-                    return flagMap.has('-v') ? output + '\n' : '';
-                },
-
-                {
-                    name: 'rm',
-                    flags: {
-                        '-r': 'regular',
-                        '-f': 'regular',
-                        '-v': 'regular',
-                    },
-                    callForEachArg: true,
                 }
             ),
 
