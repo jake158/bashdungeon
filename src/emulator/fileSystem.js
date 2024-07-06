@@ -1,181 +1,4 @@
-
-
-class Item {
-    #type;
-    #name;
-    #permissions;
-    #immutable;
-    #parent;
-
-    constructor(name, { type = null, permissions = '---------', immutable = false } = {}) {
-        this.#type = type;
-        this.#name = name;
-        this.#permissions = permissions;
-        this.#immutable = immutable;
-        this.#parent = null;
-    }
-
-    checkPermissions(action) {
-        const perms = {
-            read: this.#permissions[1] === 'r',
-            write: this.#permissions[2] === 'w',
-            execute: this.#permissions[3] === 'x'
-        };
-        if (!perms[action]) {
-            throw new Error('Permission denied');
-        }
-    }
-
-    get type() {
-        return this.#type;
-    }
-
-    get parent() {
-        return this.#parent;
-    }
-
-    get name() {
-        return this.#name;
-    }
-
-    get permissions() {
-        return this.#permissions;
-    }
-
-    get immutable() {
-        return this.#immutable;
-    }
-
-    set parent(parent) {
-        this.#parent = parent;
-    }
-
-    set name(name) {
-        if (this.#immutable) throw new Error('Permission denied');
-        this.#parent.checkPermissions('write');
-        this.#name = name;
-    }
-
-    set permissions(permissions) {
-        if (this.#immutable) throw new Error('Permission denied');
-        this.#permissions = permissions;
-    }
-}
-
-
-class Dir extends Item {
-    #contents;
-
-    constructor(name, { permissions = 'drwxrwxr-x', immutable = false } = {}, contents = []) {
-        super(name, { type: 'directory', permissions, immutable });
-        this.#contents = contents;
-        contents.forEach(item => item.parent = this);
-    }
-
-    get contents() {
-        this.checkPermissions('read');
-        return this.#contents;
-    }
-
-    get links() {
-        let links = 2;
-        this.#contents.forEach(item => {
-            if (item.type === 'directory') {
-                links += 1;
-            }
-        });
-        return links;
-    }
-
-    get isEmpty() {
-        return this.#contents.length === 0;
-    }
-
-    findItemByName(name) {
-        this.checkPermissions('execute');
-        return this.#contents.find(item => item.name === name);
-    }
-
-    removeItemByName(name, force = false) {
-        if (!force) this.checkPermissions('write');
-        const index = this.#contents.findIndex(item => item.name === name);
-        if (index !== -1) {
-            if (this.#contents[index].immutable) throw new Error('Permission denied');
-            this.#contents.splice(index, 1);
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    addItem(item) {
-        this.checkPermissions('write');
-        this.#contents.push(item);
-        item.parent = this;
-    }
-}
-
-
-class File extends Item {
-    #content;
-
-    constructor(name, { content = '', permissions = '-rw-rw-r--', immutable = false } = {}) {
-        super(name, { type: 'file', permissions, immutable });
-        this.#content = content;
-    }
-
-    get content() {
-        this.checkPermissions('read');
-        return this.#content;
-    }
-
-    get links() {
-        return 1;
-    }
-
-    set content(content) {
-        if (this.immutable) throw new Error('Permission denied');
-        this.checkPermissions('write');
-        this.#content = content;
-    }
-
-    appendContent(content) {
-        if (this.immutable) throw new Error('Permission denied');
-        this.checkPermissions('write');
-        this.#content += content;
-    }
-}
-
-
-function permsToOctal(perms) {
-    const permissionBits = { 'r': 4, 'w': 2, 'x': 1, '-': 0 };
-    let octal = '';
-
-    for (let i = 1; i < perms.length; i += 3) {
-        let value = 0;
-        value += permissionBits[perms[i]];
-        value += permissionBits[perms[i + 1]];
-        value += permissionBits[perms[i + 2]];
-        octal += value.toString(8);
-    }
-
-    return octal;
-}
-
-function octalToPerms(octal, isDirectory = false) {
-    const permissionChars = { 4: 'r', 2: 'w', 1: 'x', 0: '-' };
-    const typeChar = isDirectory ? 'd' : '-';
-    let perms = typeChar;
-
-    for (let i = 0; i < octal.length; i++) {
-        let value = parseInt(octal[i], 8);
-        perms += permissionChars[(value & 4)];
-        perms += permissionChars[(value & 2)];
-        perms += permissionChars[(value & 1)];
-    }
-
-    return perms;
-}
+import { Dir, File, octalToPerms, permsToOctal, parseChmodString } from './fileSystemUtils.js';
 
 
 class FileSystem {
@@ -207,23 +30,6 @@ class FileSystem {
         ]);
 
         this.tree.parent = this.tree;
-    }
-
-    get umask() {
-        return this.#umask;
-    }
-
-    set umask(value) {
-        if (!/(^[0-7]{3}$)|(^0{1}[0-7]{3}$)/.test(value)) {
-            throw new Error('value must be of the format: 0?[0-7][0-7][0-7]');
-        }
-        this.#umask = value.padStart(4, '0');
-    }
-
-    #applyUmask(permissions) {
-        const permOctal = permsToOctal(permissions);
-        const result = permOctal - this.#umask;
-        return octalToPerms(result.toString().padStart(3, '0'), permissions[0] === 'd');
     }
 
     #evaluatePath(path) {
@@ -260,43 +66,10 @@ class FileSystem {
         return curr;
     }
 
-    #handleItemMove(sourcePath, destPath, operation) {
-        const sourceItem = this.#getItem(sourcePath);
-        if (!sourceItem) { throw new Error('No such file or directory'); }
-
-        const getDestinationInfo = (destPath) => {
-            const sep = destPath.lastIndexOf('/');
-            const destDirPath = sep === -1 ? this.#currentDirectory : destPath.substring(0, sep);
-            const destFileName = sep === -1 ? destPath : destPath.substring(sep + 1);
-            const destDir = this.#getItem(destDirPath);
-            return { destDir, destFileName };
-        };
-
-        const itemAtPath = this.#getItem(destPath);
-        const { destDir, destFileName } = itemAtPath && itemAtPath.type === 'directory'
-            ? { destDir: itemAtPath, destFileName: sourceItem.name }
-            : getDestinationInfo(destPath);
-
-        if (!destDir) {
-            throw new Error(`'${destPath}': No such file or directory`);
-        }
-
-        const copyItem = (item) => item.type === 'file'
-            ? new File(item.name, { content: item.content, permissions: item.permissions })
-            : new Dir(item.name, { permissions: item.permissions }, item.contents.map(copyItem));
-
-        const newItem = (operation === 'copy') ? copyItem(sourceItem) : sourceItem;
-
-        newItem.name = destFileName;
-        const sourceItemName = sourceItem.name;
-        destDir.removeItemByName(destFileName);
-        destDir.addItem(newItem);
-
-        const sourceDirPath = sourcePath.substring(0, sourcePath.lastIndexOf('/'));
-        const sourceDir = this.#getItem(sourceDirPath);
-        if (operation === 'move' && !Object.is(sourceDir, destDir)) {
-            sourceDir.removeItemByName(sourceItemName);
-        }
+    #applyUmask(permissions) {
+        const permOctal = permsToOctal(permissions);
+        const result = permOctal - this.#umask;
+        return octalToPerms(result.toString().padStart(3, '0'), permissions[0] === 'd');
     }
 
     #chainErrors(func, message = null) {
@@ -310,12 +83,23 @@ class FileSystem {
     }
 
 
+    get umask() {
+        return this.#umask;
+    }
+
     get homeDirectory() {
         return this.#homeDirectory;
     }
 
     get currentDirectory() {
         return this.#currentDirectory;
+    }
+
+    set umask(value) {
+        if (!/(^[0-7]{3}$)|(^0{1}[0-7]{3}$)/.test(value)) {
+            throw new Error('value must be of the format: 0?[0-7][0-7][0-7]');
+        }
+        this.#umask = value.padStart(4, '0');
     }
 
     isDirectory(path) {
@@ -427,6 +211,43 @@ class FileSystem {
         'failed to remove'
     );
 
+    #handleItemMove(sourcePath, destPath, operation) {
+        const sourceItem = this.#getItem(sourcePath);
+        if (!sourceItem) { throw new Error('No such file or directory'); }
+
+        const getDestinationInfo = (destPath) => {
+            const sep = destPath.lastIndexOf('/');
+            const destDirPath = sep === -1 ? this.#currentDirectory : destPath.substring(0, sep);
+            const destFileName = sep === -1 ? destPath : destPath.substring(sep + 1);
+            const destDir = this.#getItem(destDirPath);
+            return { destDir, destFileName };
+        };
+
+        const itemAtPath = this.#getItem(destPath);
+        const { destDir, destFileName } = itemAtPath && itemAtPath.type === 'directory'
+            ? { destDir: itemAtPath, destFileName: sourceItem.name }
+            : getDestinationInfo(destPath);
+
+        if (!destDir) { throw new Error(`'${destPath}': No such file or directory`); }
+
+        const copyItem = (item) => item.type === 'file'
+            ? new File(item.name, { content: item.content, permissions: item.permissions })
+            : new Dir(item.name, { permissions: item.permissions }, item.contents.map(copyItem));
+
+        const newItem = (operation === 'copy') ? copyItem(sourceItem) : sourceItem;
+
+        newItem.name = destFileName;
+        const sourceItemName = sourceItem.name;
+        destDir.removeItemByName(destFileName);
+        destDir.addItem(newItem);
+
+        const sourceDirPath = sourcePath.substring(0, sourcePath.lastIndexOf('/'));
+        const sourceDir = this.#getItem(sourceDirPath);
+        if (operation === 'move' && !Object.is(sourceDir, destDir)) {
+            sourceDir.removeItemByName(sourceItemName);
+        }
+    }
+
     cp = this.#chainErrors(
         (source, dest) => {
             this.#handleItemMove(this.#evaluatePath(source), this.#evaluatePath(dest), 'copy');
@@ -469,47 +290,13 @@ class FileSystem {
         'cannot remove'
     );
 
-    #parseChmodString(string, currentPermissions) {
-        const parts = string.split(',').filter(Boolean);
-        const regex = /([ugoa]*)([+\-=])([ugo]{1}|[rwxXst]*)/g;
-        let permissions = currentPermissions.split('');
-
-        // Detect octal here
-        // UMASK!
-
-        for (const part of parts) {
-            let match;
-            let prev = null;
-            let consumedLength = 0;
-
-            while ((match = regex.exec(part)) !== null) {
-                let [fullMatch, groups, operator, perms] = match;
-                groups = prev || groups || 'a';
-                prev = groups;
-
-                console.log(`groups to change: '${groups}', operator: '${operator}', perms: '${perms}'`);
-
-                // Process here
-                // UMASK!
-
-                consumedLength += fullMatch.length;
-            }
-
-            if (consumedLength !== part.length) {
-                throw new Error(`invalid mode: '${part}'`);
-            }
-        }
-        return permissions.join('');
-    }
-
     chmod = this.#chainErrors(
         (path, permString) => {
             const item = this.#getItem(this.#evaluatePath(path));
             if (!item) { throw new Error('No such file or directory'); }
-            item.permissions = this.#parseChmodString(permString, item.permissions);
+            item.permissions = parseChmodString(permString, item.permissions);
         }
     );
-
 }
 
 

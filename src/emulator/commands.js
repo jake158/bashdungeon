@@ -140,6 +140,7 @@ class CommandRegistry {
                 },
 
                 // Add: -R
+                // Problem: chmod -x+w, chmod -x,w etc.
                 {
                     name: 'chmod',
                     flags: {
