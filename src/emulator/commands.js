@@ -1,7 +1,7 @@
-import parseArgs from './parseArgs.js';
+import { parseArgs } from './parseArgs.js';
 
 
-class CommandRegistry {
+export class CommandRegistry {
     #commands;
 
     constructor(fileSystem, colorize = (text) => text) {
@@ -362,7 +362,6 @@ class CommandRegistry {
                     destinationArgLocations: ['-t', '--target-directory', -1]
                 }
             ),
-
         };
     }
 
@@ -373,8 +372,4 @@ class CommandRegistry {
     set(name, callback) {
         this.#commands[name] = this.#command(callback, { name });
     }
-
 }
-
-
-export { CommandRegistry };

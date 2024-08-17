@@ -8,7 +8,7 @@ const processQuotes = (str) => {
 };
 
 
-const parseArgs = (args, flags) => {
+export const parseArgs = (args, flags) => {
     const flagMap = new Map();
     const positionalArgs = [];
 
@@ -86,6 +86,3 @@ const parseArgs = (args, flags) => {
     }
     return { positionalArgs, flagMap };
 };
-
-
-export default parseArgs;

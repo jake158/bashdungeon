@@ -4,7 +4,7 @@ import { BashEmulator } from './emulator/bash.js';
 import { colorize, print, ascii } from './utils.js';
 
 
-class Game {
+export class Game {
     constructor(terminalElement) {
         this.terminal = new Terminal({
             fontSize: 17,
@@ -110,8 +110,4 @@ class Game {
         this.terminal.onData(e => this.handleData(e));
         this.terminal.focus();
     }
-
 }
-
-
-export default Game;

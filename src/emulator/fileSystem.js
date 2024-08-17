@@ -1,7 +1,7 @@
 import { Dir, File, octalToPerms, permsToOctal, parseChmodString } from './fileSystemUtils.js';
 
 
-class FileSystem {
+export class FileSystem {
     #homeDirectory;
     #currentDirectory;
     #previousDirectory;
@@ -298,6 +298,3 @@ class FileSystem {
         }
     );
 }
-
-
-export { FileSystem };

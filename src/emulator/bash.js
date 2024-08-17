@@ -2,7 +2,7 @@ import { FileSystem } from './fileSystem.js';
 import { CommandRegistry } from './commands.js';
 
 
-class BashEmulator {
+export class BashEmulator {
     #fileSystem;
     #commandRegistry;
     #history;
@@ -122,6 +122,3 @@ class BashEmulator {
         return `${this.#colorize(userAtHost, 'bold', 'green')}:${this.#colorize(displayDirectory, 'bold', 'blue')}$ `;
     }
 }
-
-
-export { BashEmulator };

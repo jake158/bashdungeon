@@ -63,7 +63,7 @@ class Item {
 }
 
 
-class Dir extends Item {
+export class Dir extends Item {
     #contents;
 
     constructor(name, { permissions = 'drwxrwxr-x', immutable = false } = {}, contents = []) {
@@ -116,7 +116,7 @@ class Dir extends Item {
 }
 
 
-class File extends Item {
+export class File extends Item {
     #content;
 
     constructor(name, { content = '', permissions = '-rw-rw-r--', immutable = false } = {}) {
@@ -147,7 +147,7 @@ class File extends Item {
 }
 
 
-function permsToOctal(perms) {
+export function permsToOctal(perms) {
     const permissionBits = { 'r': 4, 'w': 2, 'x': 1, '-': 0 };
     let octal = '';
 
@@ -161,7 +161,7 @@ function permsToOctal(perms) {
     return octal;
 }
 
-function octalToPerms(octal, isDirectory = false) {
+export function octalToPerms(octal, isDirectory = false) {
     const permissionChars = { 4: 'r', 2: 'w', 1: 'x', 0: '-' };
     const typeChar = isDirectory ? 'd' : '-';
     let perms = typeChar;
@@ -176,7 +176,7 @@ function octalToPerms(octal, isDirectory = false) {
 }
 
 
-function parseChmodString(string, currentPermissions) {
+export function parseChmodString(string, currentPermissions) {
     const modes = string.split(',').filter(Boolean);
     let permissions = currentPermissions.split('');
 
@@ -290,6 +290,3 @@ function _applyIndividualPerms(indexList, operator, permSet, permissions) {
         }
     }
 }
-
-
-export { Dir, File, octalToPerms, permsToOctal, parseChmodString };

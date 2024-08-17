@@ -20,13 +20,13 @@ const colors = {
 };
 
 
-function colorize(text, ...colorArgs) {
+export function colorize(text, ...colorArgs) {
     const colorCodes = colorArgs.map(color => colors[color]).join('');
     return `${colorCodes}${text}${colors.reset}`;
 }
 
 
-function print(terminal, text, printBold = false, addNewLine = true) {
+export function print(terminal, text, printBold = false, addNewLine = true) {
     const formattedText = printBold ? `${bold}${text}${reset}` : text;
     if (addNewLine && text) {
         terminal.write(`\r\n${formattedText}`);
@@ -36,7 +36,7 @@ function print(terminal, text, printBold = false, addNewLine = true) {
 }
 
 
-const ascii = {
+export const ascii = {
     welcome: `
 Welcome to the
 
@@ -47,11 +47,4 @@ Welcome to the
      ·▀▀▀▀  ▀  ▀  ▀▀▀▀ ▀▀▀ ·    ▀▀▀▀▀•  ▀▀▀ ▀▀ █▪·▀▀▀▀  ▀▀▀  ▀█▄▀▪▀▀ █▪
 
 `,
-};
-
-
-export {
-    colorize,
-    print,
-    ascii
 };
