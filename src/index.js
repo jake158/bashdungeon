@@ -1,5 +1,5 @@
 import '@xterm/xterm/css/xterm.css';
-import '../css/style.css';
+import './layout/style.css';
 import Game from './game.js';
 
 
