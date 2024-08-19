@@ -1,23 +1,18 @@
-import { FileSystem } from './fileSystem.js';
-import { CommandRegistry } from './commands.js';
+import { Executor } from "./executor.js";
 
 
 export class BashEmulator {
-    #fileSystem;
-    #commandRegistry;
+    #executor
     #history;
     #historyIndex;
-    #colorize;
 
     constructor(clearTerminal = () => '', colorize = (text) => text) {
-        this.#fileSystem = new FileSystem();
-        this.#commandRegistry = new CommandRegistry(this.#fileSystem, colorize);
+        this.#executor = new Executor(colorize);
         this.#history = [];
         this.#historyIndex = 0;
-        this.#colorize = colorize;
 
-        this.#commandRegistry.set('clear', clearTerminal);
-        this.#commandRegistry.set('history', () => this.#history.map((line, index) => ` ${index + 1}  ${line}`).join('\n'));
+        this.#executor.setCommand('clear', clearTerminal);
+        this.#executor.setCommand('history', () => this.#history.map((line, index) => ` ${index + 1}  ${line}`).join('\n'));
     }
 
     #pushToHistory(command) {
@@ -29,17 +24,6 @@ export class BashEmulator {
     }
 
     #parseAndExecute(input) {
-        const executeCommand = (command, stdin = '') => {
-            const [commandName, ...args] = command.trim().split(/\s+/);
-            const commandFunc = this.#commandRegistry.get(commandName);
-
-            if (commandFunc) {
-                return commandFunc(args, stdin);
-            } else {
-                return { stdin: '', stdout: '', stderr: `${commandName}: command not found` };
-            }
-        };
-
         const regex = /\|\||\||&&|&>|&|;|<>|<|2>>|2>|>>/g;
         const commands = input.split(regex).map(cmd => cmd.trim()).filter(cmd => cmd !== '');
         const operators = input.match(regex) || [];
@@ -52,23 +36,23 @@ export class BashEmulator {
         for (let i = 0; i < commands.length; i++) {
             switch (operators[i]) {
                 case ';':
-                    result = executeCommand(commands[i]);
+                    result = this.#executor.executeCommand(commands[i]);
                     break;
                 case '||':
                     if (!result.stderr) { break pipeline; }
-                    result = executeCommand(commands[i]);
+                    result = this.#executor.executeCommand(commands[i]);
                     break;
                 case '&&':
                     if (result.stderr) { break pipeline; }
-                    result = executeCommand(commands[i]);
+                    result = this.#executor.executeCommand(commands[i]);
                     break;
                 case '|':
                     if (!result.stderr) outputStream.pop();
-                    result = executeCommand(commands[i], result.stdout);
+                    result = this.#executor.executeCommand(commands[i], result.stdout);
                     break;
                 case '2>':
                     outputStream.pop();
-                    result = executeCommand(commands[i], result.stderr);
+                    result = this.#executor.executeCommand(commands[i], result.stderr);
                     break;
                 default:
                     outputStream.push(`${operators[i]}: operator not implemented`);
@@ -117,8 +101,6 @@ export class BashEmulator {
     }
 
     getPrompt() {
-        const userAtHost = 'wizard@dungeon';
-        const displayDirectory = this.#fileSystem.currentDirectory.replace(this.#fileSystem.homeDirectory, '~');
-        return `${this.#colorize(userAtHost, 'bold', 'green')}:${this.#colorize(displayDirectory, 'bold', 'blue')}$ `;
+        return this.#executor.getPrompt();
     }
 }

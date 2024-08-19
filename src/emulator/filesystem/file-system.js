@@ -1,4 +1,6 @@
-import { Dir, File, octalToPerms, permsToOctal, parseChmodString } from './fileSystemUtils.js';
+import { ROOT } from './levels.js';
+import { Dir, File } from './items.js';
+import { octalToPerms, permsToOctal, parseChmodString } from './file-system-utils.js';
 
 
 export class FileSystem {
@@ -13,22 +15,7 @@ export class FileSystem {
         this.#previousDirectory = this.#currentDirectory;
         this.#umask = '0002';
 
-        this.tree = new Dir('/', { immutable: true }, [
-            new Dir('home', { immutable: true }, [
-                new Dir('wizard', { immutable: true }, [
-                    new Dir('Dungeon', { immutable: true }, [
-                        new File('file1.txt', { content: 'file1 yo' }),
-                        new File('emptyfile.txt'),
-                        new File('.test', { content: 'hidden immutable file yo', immutable: true }),
-                        new File('unreadable.txt', { content: 'unreadable yo', permissions: '--wx------' }),
-                        new Dir('noexecute', { permissions: 'drw-------' }),
-                        new Dir('noread', { permissions: 'd-wx------' }),
-                        new Dir('nowrite', { permissions: 'dr-x------' }, [new File('denied')])
-                    ])
-                ])
-            ])
-        ]);
-
+        this.tree = ROOT;
         this.tree.parent = this.tree;
     }
 
