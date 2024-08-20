@@ -9,7 +9,8 @@ export class CommandExecutor {
     constructor(fileSystem, colorize = (text) => text) {
         this.fileSystem = fileSystem;
         this.colorize = colorize;
-        this.#commands = this.#initializeCommands();
+        this.#commands = {};
+        this.#initializeCommands();
     }
 
     #popDestinationArg(positionalArgs, flagMap, destinationArgs) {
@@ -86,21 +87,21 @@ export class CommandExecutor {
     }
 
     #initializeCommands() {
-        const commands = {};
         const sysCommands = new SystemCommands(this.fileSystem, this.colorize).get();
         const textCommands = new TextCommands(this.fileSystem, this.colorize).get();
 
         for (const [name, [func, settings]] of Object.entries({ ...sysCommands, ...textCommands })) {
-            commands[name] = this.#command(func, settings);
+            this.#commands[name] = this.#command(func, settings);
         }
-        return commands;
-    }
-
-    get(name) {
-        return this.#commands[name];
     }
 
     set(name, callback) {
         this.#commands[name] = this.#command(callback, { name });
+    }
+
+    execute(commandName, stdin, args) {
+        const command = this.#commands[commandName];
+        if (!command) { return { stdin: '', stdout: '', stderr: `${commandName}: command not found` }; }
+        return command(stdin, args);
     }
 }

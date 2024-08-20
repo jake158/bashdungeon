@@ -1,18 +1,25 @@
-import { Executor } from "./executor.js";
+import { EventEmitter } from "./event-emitter.js";
+import { FileSystem } from './filesystem/file-system.js';
+import { CommandExecutor } from './commands/command-executor.js';
+import { Process } from "./process.js";
 
 
-export class BashEmulator {
-    #executor
+export class BashEmulator extends EventEmitter {
+    #fileSystem;
+    #commandExecutor;
     #history;
     #historyIndex;
 
     constructor(clearTerminal = () => '', colorize = (text) => text) {
-        this.#executor = new Executor(colorize);
+        super();
+        this.colorize = colorize;
+        this.#fileSystem = new FileSystem();
+        this.#commandExecutor = new CommandExecutor(this.#fileSystem, colorize);
         this.#history = [];
         this.#historyIndex = 0;
 
-        this.#executor.setCommand('clear', clearTerminal);
-        this.#executor.setCommand('history', () => this.#history.map((line, index) => ` ${index + 1}  ${line}`).join('\n'));
+        this.#commandExecutor.set('clear', clearTerminal);
+        this.#commandExecutor.set('history', () => this.#history.map((line, index) => ` ${index + 1}  ${line}`).join('\n'));
     }
 
     #pushToHistory(command) {
@@ -23,7 +30,23 @@ export class BashEmulator {
         }
     }
 
-    #parseAndExecute(input) {
+    async #runProcess(name, func, args = [], type = 'systemProcess') {
+        const process = new Process(name, func, args);
+        process.on('start', (name) => this.emit('processStart', name, type, process));
+        process.on('end', (name) => this.emit('processEnd', name, type, process));
+        return process.run();
+    }
+
+    async executeCommand(command, stdin = '') {
+        const [commandName, ...args] = command.trim().split(/\s+/);
+        return this.#runProcess(
+            commandName,
+            (commandName, stdin, args) => this.#commandExecutor.execute(commandName, stdin, args),
+            [commandName, stdin, args],
+            'userCommand');
+    }
+
+    async #parseAndExecute(input) {
         const regex = /\|\||\||&&|&>|&|;|<>|<|2>>|2>|>>/g;
         const commands = input.split(regex).map(cmd => cmd.trim()).filter(cmd => cmd !== '');
         const operators = input.match(regex) || [];
@@ -36,23 +59,23 @@ export class BashEmulator {
         for (let i = 0; i < commands.length; i++) {
             switch (operators[i]) {
                 case ';':
-                    result = this.#executor.executeCommand(commands[i]);
+                    result = await this.executeCommand(commands[i]);
                     break;
                 case '||':
                     if (!result.stderr) { break pipeline; }
-                    result = this.#executor.executeCommand(commands[i]);
+                    result = await this.executeCommand(commands[i]);
                     break;
                 case '&&':
                     if (result.stderr) { break pipeline; }
-                    result = this.#executor.executeCommand(commands[i]);
+                    result = await this.executeCommand(commands[i]);
                     break;
                 case '|':
                     if (!result.stderr) outputStream.pop();
-                    result = this.#executor.executeCommand(commands[i], result.stdout);
+                    result = await executeCommand(commands[i], result.stdout);
                     break;
                 case '2>':
                     outputStream.pop();
-                    result = this.#executor.executeCommand(commands[i], result.stderr);
+                    result = await executeCommand(commands[i], result.stderr);
                     break;
                 default:
                     outputStream.push(`${operators[i]}: operator not implemented`);
@@ -68,12 +91,12 @@ export class BashEmulator {
         return outputStream;
     }
 
-    execute(input) {
+    async execute(input) {
         if (!/\S/.test(input)) {
             return '';
         }
         this.#pushToHistory(input);
-        const outputStream = this.#parseAndExecute(input);
+        const outputStream = await this.#parseAndExecute(input);
         return outputStream.join('\n');
     }
 
@@ -101,6 +124,8 @@ export class BashEmulator {
     }
 
     getPrompt() {
-        return this.#executor.getPrompt();
+        const userAtHost = 'wizard@dungeon';
+        const displayDirectory = this.#fileSystem.currentDirectory.replace(this.#fileSystem.homeDirectory, '~');
+        return `${this.colorize(userAtHost, 'bold', 'green')}:${this.colorize(displayDirectory, 'bold', 'blue')}$ `;
     }
 }

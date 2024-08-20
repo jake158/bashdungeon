@@ -20,8 +20,26 @@ export class Game {
         window.addEventListener('resize', () => this.fitAddon.fit());
 
         this.bash = new BashEmulator(() => this.terminal.reset(), colorize);
+        this.bash.on('processStart', (name, type, process) => this.handleProcessStart(name, type, process));
+        this.bash.on('processEnd', (name, type, process) => this.handleProcessEnd(name, type, process));
+        this.bash.on('prompt', (message, resolve) => this.handlePrompt(message, resolve));
+
         this.commandBuffer = '';
         this.cursorRow = 0;
+    }
+
+    handleProcessStart(name, type, process) {
+        console.log(`Process start: ${name}, type: ${type}`);
+    }
+
+    handleProcessEnd(name, type, process) {
+        console.log(`Process end: ${name}, type: ${type}`);
+        this.mode = 'normal';
+    }
+
+    async handlePrompt(message, respond) {
+        // TODO: Implement
+        respond('y');
     }
 
     // Improve this
@@ -31,13 +49,13 @@ export class Game {
         }
     }
 
-    handleData(e) {
+    async handleData(e) {
         const { terminal, bash } = this;
         switch (e) {
 
             // Enter
             case '\r':
-                const result = bash.execute(this.commandBuffer);
+                const result = await bash.execute(this.commandBuffer);
                 print(terminal, result);
                 print(terminal, bash.getPrompt());
                 this.commandBuffer = '';
