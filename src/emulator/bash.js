@@ -71,11 +71,11 @@ export class BashEmulator extends EventEmitter {
                     break;
                 case '|':
                     if (!result.stderr) outputStream.pop();
-                    result = await executeCommand(commands[i], result.stdout);
+                    result = await this.executeCommand(commands[i], result.stdout);
                     break;
                 case '2>':
                     outputStream.pop();
-                    result = await executeCommand(commands[i], result.stderr);
+                    result = await this.executeCommand(commands[i], result.stderr);
                     break;
                 default:
                     outputStream.push(`${operators[i]}: operator not implemented`);

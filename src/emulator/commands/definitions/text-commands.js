@@ -61,7 +61,6 @@ export class TextCommands {
 
             'grep': [
                 (stdin, [file, pattern], flagMap, multipleArgsMode = false) => {
-                    // TODO: Multiple args mode
                     let text = stdin;
                     const options = {
                         ignoreCase: flagMap.has('-i'),
@@ -69,11 +68,7 @@ export class TextCommands {
                     };
 
                     if (file && file !== '-') {
-                        try {
-                            text = this.fileSystem.getFileContent(file);
-                        } catch (error) {
-                            throw new Error(`${file}: No such file or directory`);
-                        }
+                        text = this.fileSystem.getFileContent(file);
                     }
 
                     const regex = new RegExp(pattern, options.ignoreCase ? 'i' : '');
@@ -84,12 +79,15 @@ export class TextCommands {
                         if (regex.test(line)) {
                             let outputLine = line.replace(regex, (match) => this.colorize(match, 'bold', 'red'));
                             if (options.lineNumbers) {
-                                outputLine = `${this.colorize(index + 1, 'green')}${this.colorize(':', 'blue')}${outputLine}`;
+                                outputLine = `${this.colorize(index + 1, 'green')}${this.colorize(':', 'cyan')}${outputLine}`;
+                            }
+                            if (multipleArgsMode) {
+                                outputLine = `${this.colorize(file, 'magenta')}${this.colorize(':', 'cyan')}${outputLine}`;
                             }
                             results.push(outputLine);
                         }
                     });
-                    return results.join('\n');
+                    return results.join('\n') + (multipleArgsMode ? '\n' : '');
                 },
 
                 {
