@@ -58,6 +58,49 @@ export class TextCommands {
                     callForEachArg: true
                 }
             ],
+
+            'grep': [
+                (stdin, [file, pattern], flagMap, multipleArgsMode = false) => {
+                    // TODO: Multiple args mode
+                    let text = stdin;
+                    const options = {
+                        ignoreCase: flagMap.has('-i'),
+                        lineNumbers: flagMap.has('-n'),
+                    };
+
+                    if (file && file !== '-') {
+                        try {
+                            text = this.fileSystem.getFileContent(file);
+                        } catch (error) {
+                            throw new Error(`${file}: No such file or directory`);
+                        }
+                    }
+
+                    const regex = new RegExp(pattern, options.ignoreCase ? 'i' : '');
+                    const lines = text.split('\n');
+                    const results = [];
+
+                    lines.forEach((line, index) => {
+                        if (regex.test(line)) {
+                            let outputLine = line.replace(regex, (match) => this.colorize(match, 'bold', 'red'));
+                            if (options.lineNumbers) {
+                                outputLine = `${this.colorize(index + 1, 'green')}${this.colorize(':', 'blue')}${outputLine}`;
+                            }
+                            results.push(outputLine);
+                        }
+                    });
+                    return results.join('\n');
+                },
+
+                {
+                    flags: {
+                        '-i': 'regular', // Case insensitive search
+                        '-n': 'regular', // Show line numbers
+                    },
+                    callForEachArg: true,
+                    destinationArgLocations: [0]
+                }
+            ]
         }
     }
 }
