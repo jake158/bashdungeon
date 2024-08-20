@@ -1,5 +1,5 @@
-import { SystemCommands } from './definitions/system.js';
-import { TextCommands } from './definitions/text.js';
+import { SystemCommands } from './definitions/system-commands.js';
+import { TextCommands } from './definitions/text-commands.js';
 import { parseArgs } from './parse-args.js';
 
 
@@ -31,7 +31,7 @@ export class CommandExecutor {
         return dest;
     }
 
-    #executeMultipleArgs(func, stdin, positionalArgs, flagMap, name, destinationArgs, sortArgs) {
+    #executeMultipleArgs(name, func, stdin, positionalArgs, flagMap, destinationArgs, sortArgs) {
         const dest = destinationArgs ? this.#popDestinationArg(positionalArgs, flagMap, destinationArgs) : null;
         if (sortArgs) { positionalArgs.sort(sortArgs); }
         if (positionalArgs.length === 0) { positionalArgs.push(null); }
@@ -54,9 +54,8 @@ export class CommandExecutor {
         return { stdin: '', stdout: stdout.trim(), stderr: stderr.trim() };
     }
 
-    #command(func, settings = {}) {
+    #command(name, func, settings = {}) {
         const {
-            name = 'unnamed command',
             flags = {},
             callForEachArg = false,
             destinationArgLocations = null,
@@ -69,11 +68,11 @@ export class CommandExecutor {
 
                 if (callForEachArg) {
                     return this.#executeMultipleArgs(
+                        name,
                         func,
                         stdin,
                         positionalArgs,
                         flagMap,
-                        name,
                         destinationArgLocations,
                         sortArgs
                     );
@@ -91,12 +90,12 @@ export class CommandExecutor {
         const textCommands = new TextCommands(this.fileSystem, this.colorize).get();
 
         for (const [name, [func, settings]] of Object.entries({ ...sysCommands, ...textCommands })) {
-            this.#commands[name] = this.#command(func, settings);
+            this.#commands[name] = this.#command(name, func, settings ?? {});
         }
     }
 
     set(name, callback) {
-        this.#commands[name] = this.#command(callback, { name });
+        this.#commands[name] = this.#command(name, callback);
     }
 
     execute(commandName, stdin, args) {

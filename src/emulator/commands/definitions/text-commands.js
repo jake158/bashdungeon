@@ -36,7 +36,6 @@ export class TextCommands {
                 },
 
                 {
-                    name: 'echo',
                     flags: {
                         '-e': 'regular',
                         '-E': 'regular',
@@ -56,7 +55,6 @@ export class TextCommands {
                 },
 
                 {
-                    name: 'cat',
                     callForEachArg: true
                 }
             ],

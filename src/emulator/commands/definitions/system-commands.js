@@ -10,7 +10,6 @@ export class SystemCommands {
         return {
             'pwd': [
                 () => { return this.fileSystem.currentDirectory; },
-                { name: 'pwd' }
             ],
 
             'cd': [
@@ -22,7 +21,6 @@ export class SystemCommands {
                     this.fileSystem.cd(path);
                     return '';
                 },
-                { name: 'bash: cd' }
             ],
 
             'umask': [
@@ -38,7 +36,6 @@ export class SystemCommands {
                     }
                     return '';
                 },
-                { name: 'umask' }
             ],
 
             'chmod': [
@@ -64,7 +61,6 @@ export class SystemCommands {
                 // Add: -R
                 // Problem: chmod -x+w, chmod -x,w etc.
                 {
-                    name: 'chmod',
                     flags: {
                         '-r': 'regular',
                         '-w': 'regular',
@@ -83,7 +79,6 @@ export class SystemCommands {
                 },
 
                 {
-                    name: 'mkdir',
                     callForEachArg: true
                 }
             ],
@@ -98,7 +93,6 @@ export class SystemCommands {
                 },
 
                 {
-                    name: 'rmdir',
                     callForEachArg: true
                 }
             ],
@@ -118,7 +112,6 @@ export class SystemCommands {
                 },
 
                 {
-                    name: 'rm',
                     flags: {
                         '-r': 'regular',
                         '-f': 'regular',
@@ -158,7 +151,6 @@ export class SystemCommands {
                 },
 
                 {
-                    name: 'ls',
                     flags: {
                         '-l': 'regular',
                         '-d': 'regular',
@@ -192,7 +184,6 @@ export class SystemCommands {
                 },
 
                 {
-                    name: 'cp',
                     flags: {
                         '-t': 'argument',
                         '--target-directory': 'argument',
@@ -219,7 +210,6 @@ export class SystemCommands {
                 },
 
                 {
-                    name: 'mv',
                     flags: {
                         '-t': 'argument',
                         '--target-directory': 'argument',
