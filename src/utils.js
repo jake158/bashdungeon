@@ -1,5 +1,17 @@
 
 
+export const ansi = {
+    backspace: '\u007F',
+    cursorUp: '\x1b[A',
+    cursorDown: '\x1b[B',
+    cursorForward: '\x1b[C',
+    cursorBackward: '\x1b[D',
+    moveToBeginning: '\x1b[1G',
+    deleteToLeft: '\x1b[D \x1b[D',
+    deleteOnCursor: ' \b\x1b[C',
+    moveToColumn: (col) => `\x1b[${col}C`,
+};
+
 const colors = {
     reset: '\x1b[0m',
     bold: '\x1b[1m',
@@ -16,25 +28,13 @@ const colors = {
     bgBlue: '\x1b[44m',
     bgMagenta: '\x1b[45m',
     bgCyan: '\x1b[46m',
-    bgWhite: '\x1b[47m'
-};
-
+    bgWhite: '\x1b[47m',
+}
 
 export function colorize(text, ...colorArgs) {
-    const colorCodes = colorArgs.map(color => colors[color]).join('');
+    const colorCodes = colorArgs.map(color => colors[color] || '').join('');
     return `${colorCodes}${text}${colors.reset}`;
 }
-
-
-export function print(terminal, text, printBold = false, addNewLine = true) {
-    const formattedText = printBold ? `${bold}${text}${reset}` : text;
-    if (addNewLine && text) {
-        terminal.write(`\r\n${formattedText}`);
-    } else {
-        terminal.write(`${formattedText}`);
-    }
-}
-
 
 export const ascii = {
     welcome: `

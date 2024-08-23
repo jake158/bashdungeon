@@ -1,7 +1,7 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { BashEmulator } from './emulator/bash.js';
-import { colorize, print, ascii } from './utils.js';
+import { colorize, ascii, ansi } from './utils.js';
 
 
 export class Game {
@@ -20,63 +20,50 @@ export class Game {
         window.addEventListener('resize', () => this.fitAddon.fit());
 
         this.bash = new BashEmulator(() => this.terminal.reset(), colorize);
-        this.bash.on('processStart', (name, type, process) => this.handleProcessStart(name, type, process));
-        this.bash.on('processEnd', (name, type, process) => this.handleProcessEnd(name, type, process));
-        this.bash.on('prompt', (message, resolve) => this.handlePrompt(message, resolve));
 
         this.commandBuffer = '';
         this.cursorRow = 0;
     }
 
-    handleProcessStart(name, type, process) {
-        console.log(`Process start: ${name}, type: ${type}`);
-    }
-
-    handleProcessEnd(name, type, process) {
-        console.log(`Process end: ${name}, type: ${type}`);
-        this.mode = 'normal';
-    }
-
-    async handlePrompt(message, respond) {
-        // TODO: Implement
-        respond('y');
-    }
-
-    // Improve this
     clearInput() {
-        for (let i = 0; i < this.commandBuffer.length; i++) {
-            this.terminal.write('\b \b');
+        let cursorPos = this.terminal.buffer.active.cursorX;
+        while (this.commandBuffer.length > 0) {
+            this.commandBuffer = this.commandBuffer.slice(0, -1);
+
+            if (cursorPos != 0) {
+                this.terminal.write(ansi.deleteToLeft);
+                cursorPos--;
+            } else {
+                terminal.write(ansi.cursorUp + ansi.moveToColumn(terminal.cols) + ansi.deleteOnCursor);
+                cursorPos = this.terminal.cols - 1;
+            }
         }
+        this.cursorRow = 0;
     }
 
     async handleData(e) {
         const { terminal, bash } = this;
-        switch (e) {
 
-            // Enter
+        switch (e) {
             case '\r':
                 const result = await bash.execute(this.commandBuffer);
-                print(terminal, result);
-                print(terminal, bash.getPrompt());
+                terminal.write(result ? '\r\n' + result : '');
+                terminal.write(`\r\n${bash.getPrompt()}`);
                 this.commandBuffer = '';
                 this.cursorRow = 0;
                 break;
 
-            // Backspace
-            case '\u007F':
+            case ansi.backspace:
                 if (this.commandBuffer.length > 0 && terminal.buffer.active.cursorX != 0) {
                     this.commandBuffer = this.commandBuffer.slice(0, -1);
-                    terminal.write('\b \b');
+                    terminal.write(ansi.deleteToLeft);
                 } else if (terminal.buffer.active.cursorX == 0) {
                     this.commandBuffer = this.commandBuffer.slice(0, -1);
-                    terminal.write('\x1b[A');
-                    terminal.write(`\x1b[${terminal.cols}C`);
-                    terminal.write('\b \b');
+                    terminal.write(ansi.cursorUp + ansi.moveToColumn(terminal.cols) + ansi.deleteOnCursor);
                     this.cursorRow--;
                 }
                 break;
 
-            // Tab
             case '\t':
                 const completion = bash.tabComplete(this.commandBuffer);
                 if (completion) {
@@ -86,8 +73,7 @@ export class Game {
                 }
                 break;
 
-            // Up arrow
-            case '\x1b[A':
+            case ansi.cursorUp:
                 const upCommand = bash.historyUp();
                 if (upCommand) {
                     this.clearInput();
@@ -96,8 +82,7 @@ export class Game {
                 }
                 break;
 
-            // Down arrow
-            case '\x1b[B':
+            case ansi.cursorDown:
                 const downCommand = bash.historyDown();
                 if (downCommand) {
                     this.clearInput();
@@ -106,16 +91,34 @@ export class Game {
                 }
                 break;
 
-            // Left, right arrow
-            case '\x1b[D':
-            case '\x1b[C':
+            case ansi.cursorBackward:
+                // TODO: fix: include prompt length
+                if (this.commandBuffer.length > 0) {
+                    if (terminal.buffer.active.cursorX === 0 && this.cursorRow > 0) {
+                        this.cursorRow--;
+                        terminal.write(ansi.cursorUp + ansi.moveToColumn(terminal.cols));
+                    } else {
+                        terminal.write(ansi.cursorBackward);
+                    }
+                }
+                break;
+
+            case ansi.cursorForward:
+                // TODO: fix: include prompt length
+                if (this.commandBuffer.length > terminal.buffer.active.cursorX + terminal.cols * this.cursorRow) {
+                    if (terminal.buffer.active.cursorX === terminal.cols - 1) {
+                        this.cursorRow++;
+                        terminal.write(ansi.cursorDown + ansi.moveToBeginning);
+                    } else {
+                        terminal.write(ansi.cursorForward);
+                    }
+                }
                 break;
 
             default:
-                if (terminal.buffer.active.cursorX === terminal.cols - 1) {
+                if (terminal.buffer.active.cursorX === terminal.cols) {
                     this.cursorRow += 1;
-                    terminal.write('\x1b[B');
-                    terminal.write('\x1b[1000D');
+                    terminal.write(ansi.cursorDown + ansi.moveToBeginning);
                 }
                 this.commandBuffer += e;
                 terminal.write(e);
@@ -124,7 +127,7 @@ export class Game {
 
     start() {
         this.terminal.write(ascii.welcome);
-        print(this.terminal, this.bash.getPrompt());
+        this.terminal.write(this.bash.getPrompt());
         this.terminal.onData(e => this.handleData(e));
         this.terminal.focus();
     }
