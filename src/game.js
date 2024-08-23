@@ -22,6 +22,7 @@ export class Game {
         this.bash = new BashEmulator(() => this.terminal.reset(), colorize);
 
         this.commandBuffer = '';
+        this.promptLen = this.bash.getPrompt(false).length;
         this.cursorRow = 0;
     }
 
@@ -34,7 +35,7 @@ export class Game {
                 this.terminal.write(ansi.deleteToLeft);
                 cursorPos--;
             } else {
-                terminal.write(ansi.cursorUp + ansi.moveToColumn(terminal.cols) + ansi.deleteOnCursor);
+                this.terminal.write(ansi.cursorUp + ansi.moveToColumn(this.terminal.cols) + ansi.deleteOnCursor);
                 cursorPos = this.terminal.cols - 1;
             }
         }
@@ -48,12 +49,15 @@ export class Game {
             case '\r':
                 const result = await bash.execute(this.commandBuffer);
                 terminal.write(result ? '\r\n' + result : '');
-                terminal.write(`\r\n${bash.getPrompt()}`);
+                terminal.write(`\r\n` + bash.getPrompt());
+
                 this.commandBuffer = '';
+                this.promptLen = bash.getPrompt(false).length;
                 this.cursorRow = 0;
                 break;
 
             case ansi.backspace:
+                // TODO: When cursor is in a non-trivial spot, ensure this.cursorRow is always valid
                 if (this.commandBuffer.length > 0 && terminal.buffer.active.cursorX != 0) {
                     this.commandBuffer = this.commandBuffer.slice(0, -1);
                     terminal.write(ansi.deleteToLeft);
@@ -65,6 +69,7 @@ export class Game {
                 break;
 
             case '\t':
+                // TODO: When the completion makes the current line wrap, ensure this.cursorRow is valid
                 const completion = bash.tabComplete(this.commandBuffer);
                 if (completion) {
                     this.clearInput();
@@ -74,6 +79,7 @@ export class Game {
                 break;
 
             case ansi.cursorUp:
+                // TODO: When the history entry makes the line wrap, ensure this.cursorRow is valid
                 const upCommand = bash.historyUp();
                 if (upCommand) {
                     this.clearInput();
@@ -83,6 +89,7 @@ export class Game {
                 break;
 
             case ansi.cursorDown:
+                // TODO: When the history entry makes the line wrap, ensure this.cursorRow is valid
                 const downCommand = bash.historyDown();
                 if (downCommand) {
                     this.clearInput();
@@ -92,30 +99,35 @@ export class Game {
                 break;
 
             case ansi.cursorBackward:
-                // TODO: fix: include prompt length
-                if (this.commandBuffer.length > 0) {
-                    if (terminal.buffer.active.cursorX === 0 && this.cursorRow > 0) {
-                        this.cursorRow--;
-                        terminal.write(ansi.cursorUp + ansi.moveToColumn(terminal.cols));
-                    } else {
-                        terminal.write(ansi.cursorBackward);
-                    }
+                if (
+                    (this.cursorRow === 0 && terminal.buffer.active.cursorX === this.promptLen + 2)
+                    || (this.commandBuffer.length === 0)
+                ) { return; }
+
+                if (terminal.buffer.active.cursorX === 0 && this.cursorRow > 0) {
+                    this.cursorRow--;
+                    terminal.write(ansi.cursorUp + ansi.moveToColumn(terminal.cols));
+                } else {
+                    terminal.write(ansi.cursorBackward);
                 }
                 break;
 
             case ansi.cursorForward:
-                // TODO: fix: include prompt length
-                if (this.commandBuffer.length > terminal.buffer.active.cursorX + terminal.cols * this.cursorRow) {
-                    if (terminal.buffer.active.cursorX === terminal.cols - 1) {
-                        this.cursorRow++;
-                        terminal.write(ansi.cursorDown + ansi.moveToBeginning);
-                    } else {
-                        terminal.write(ansi.cursorForward);
-                    }
+                if (
+                    !(this.promptLen + this.commandBuffer.length + 2
+                        > terminal.buffer.active.cursorX + terminal.cols * this.cursorRow)
+                ) { return; }
+
+                if (terminal.buffer.active.cursorX === terminal.cols - 1) {
+                    this.cursorRow++;
+                    terminal.write(ansi.cursorDown + ansi.moveToBeginning);
+                } else {
+                    terminal.write(ansi.cursorForward);
                 }
                 break;
 
             default:
+                // TODO: When the cursor isn't in a trivial position, ensure this.cursorRow increment still works
                 if (terminal.buffer.active.cursorX === terminal.cols) {
                     this.cursorRow += 1;
                     terminal.write(ansi.cursorDown + ansi.moveToBeginning);
