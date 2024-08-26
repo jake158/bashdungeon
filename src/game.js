@@ -26,27 +26,46 @@ export class Game {
         this.cursorPos = 0;
     }
 
-    rewriteBuffer(newBuffer = "", newCursorPos = null) {
-        const newPos = newCursorPos ?? newBuffer.length;
-        const totalRows = Math.floor((this.promptLen + this.commandBuffer.length + 2) / this.terminal.cols);
-        const currentRow = Math.floor((this.promptLen + this.cursorPos + 1) / this.terminal.cols);
+    #calculateTotalRows(bufferLength) {
+        return Math.floor((this.promptLen + bufferLength + 2) / this.terminal.cols);
+    }
 
-        this.terminal.write(ansi.cursorDown.repeat(totalRows - currentRow));
+    #calculateCurrentRow(cursorPos) {
+        return Math.floor((this.promptLen + cursorPos + 1) / this.terminal.cols);
+    }
+
+    #moveCursorToBottom(totalRows, currentRow) {
+        const rowsToMoveDown = totalRows - currentRow;
+        if (rowsToMoveDown > 0) {
+            this.terminal.write(ansi.cursorDown.repeat(rowsToMoveDown));
+        }
+    }
+
+    #moveCursorToSavedPosition(newBuffer, newPos) {
+        // TODO: Bug: when cursor is at col 0, it rewrites the prompt
+        // This function is still buggy
+        const totalNewRows = this.#calculateTotalRows(newBuffer.length - 1);
+        const newRow = this.#calculateCurrentRow(newPos);
+
+        const rowsToMoveUp = totalNewRows - newRow;
+        if (rowsToMoveUp > 0) {
+            this.terminal.write(ansi.cursorUp.repeat(rowsToMoveUp));
+        }
+        const columnPos = (this.promptLen + 2 + newPos) % this.terminal.cols;
+        this.terminal.write(ansi.moveToColumn(columnPos === 0 ? this.terminal.cols : columnPos + 1));
+    }
+
+    rewriteBuffer(newBuffer = "", newCursorPos = null) {
+        const totalRows = this.#calculateTotalRows(this.commandBuffer.length);
+        const currentRow = this.#calculateCurrentRow(this.cursorPos);
+
+        this.#moveCursorToBottom(totalRows, currentRow);
         this.terminal.write((ansi.deleteLine + ansi.cursorUp).repeat(totalRows + 1));
         this.terminal.write('\r\n' + this.bash.getPrompt() + newBuffer);
 
-        // This is hellish and needs refactoring, but it works
+        const newPos = newCursorPos ?? newBuffer.length;
         if (newCursorPos !== null) {
-            const totalNewRows = Math.floor((this.promptLen + newBuffer.length + 1) / this.terminal.cols);
-            const newRow = Math.floor((this.promptLen + newPos + 1) / this.terminal.cols);
-
-            const rowsToMoveUp = totalNewRows - newRow;
-            if (rowsToMoveUp > 0) {
-                this.terminal.write(ansi.cursorUp.repeat(rowsToMoveUp));
-            }
-
-            const columnPos = (this.promptLen + 2 + newPos) % this.terminal.cols;
-            this.terminal.write(ansi.moveToColumn(columnPos === 0 ? this.terminal.cols : columnPos + 1));
+            this.#moveCursorToSavedPosition(newBuffer, newPos);
         }
         this.cursorPos = newPos;
         this.commandBuffer = newBuffer;
@@ -69,7 +88,7 @@ export class Game {
             case ansi.backspace:
                 if (this.cursorPos > 0) {
                     const newBuffer = this.commandBuffer.slice(0, this.cursorPos - 1) + this.commandBuffer.slice(this.cursorPos);
-                    this.rewriteBuffer(newBuffer, this.cursorPos - 1);
+                    requestAnimationFrame(() => this.rewriteBuffer(newBuffer, this.cursorPos - 1));
                 }
                 break;
 
@@ -118,7 +137,7 @@ export class Game {
 
             default:
                 const newBuffer = this.commandBuffer.slice(0, this.cursorPos) + e + this.commandBuffer.slice(this.cursorPos);
-                this.rewriteBuffer(newBuffer, this.cursorPos + 1);
+                requestAnimationFrame(() => this.rewriteBuffer(newBuffer, this.cursorPos + 1));
         }
     }
 
