@@ -9,7 +9,8 @@ export const ansi = {
     moveToBeginning: '\x1b[1G',
     deleteToLeft: '\x1b[D \x1b[D',
     deleteOnCursor: ' \b\x1b[C',
-    moveToColumn: (col) => `\x1b[${col}C`,
+    deleteLine: '\x1b[2K',
+    moveToColumn: (col) => `\x1b[${col}G`,
 };
 
 const colors = {

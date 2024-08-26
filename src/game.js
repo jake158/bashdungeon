@@ -23,23 +23,30 @@ export class Game {
 
         this.commandBuffer = '';
         this.promptLen = this.bash.getPrompt(false).length;
-        this.cursorRow = 0;
+        this.cursorPos = 0;
     }
 
-    clearInput() {
-        let cursorPos = this.terminal.buffer.active.cursorX;
-        while (this.commandBuffer.length > 0) {
-            this.commandBuffer = this.commandBuffer.slice(0, -1);
+    rewriteBuffer(newBuffer = "", newCursorPos = null) {
+        const newPos = newCursorPos ?? newBuffer.length;
+        const totalRows = Math.floor((this.promptLen + this.commandBuffer.length + 2) / this.terminal.cols);
+        const currentRow = Math.floor((this.promptLen + this.cursorPos + 1) / this.terminal.cols);
 
-            if (cursorPos != 0) {
-                this.terminal.write(ansi.deleteToLeft);
-                cursorPos--;
-            } else {
-                this.terminal.write(ansi.cursorUp + ansi.moveToColumn(this.terminal.cols) + ansi.deleteOnCursor);
-                cursorPos = this.terminal.cols - 1;
+        this.terminal.write(ansi.cursorDown.repeat(totalRows - currentRow));
+        this.terminal.write((ansi.deleteLine + ansi.cursorUp).repeat(totalRows + 1));
+        this.terminal.write('\r\n' + this.bash.getPrompt() + newBuffer);
+
+        // BUG: Backspace when line is wrapping causes weird behavior
+        if (newCursorPos !== null) {
+            const newRow = Math.floor((this.promptLen + newPos + 1) / this.terminal.cols);
+            const rowsToMoveUp = totalRows - newRow;
+            if (rowsToMoveUp > 0) {
+                this.terminal.write(ansi.cursorUp.repeat(rowsToMoveUp));
             }
+            const columnPos = (this.promptLen + 2 + newPos) % this.terminal.cols;
+            this.terminal.write(ansi.moveToColumn(columnPos + 1));
         }
-        this.cursorRow = 0;
+        this.cursorPos = newPos;
+        this.commandBuffer = newBuffer;
     }
 
     async handleData(e) {
@@ -53,87 +60,62 @@ export class Game {
 
                 this.commandBuffer = '';
                 this.promptLen = bash.getPrompt(false).length;
-                this.cursorRow = 0;
+                this.cursorPos = 0;
                 break;
 
             case ansi.backspace:
-                // TODO: When cursor is in a non-trivial spot, ensure this.cursorRow is always valid
-                if (this.commandBuffer.length > 0 && terminal.buffer.active.cursorX != 0) {
-                    this.commandBuffer = this.commandBuffer.slice(0, -1);
-                    terminal.write(ansi.deleteToLeft);
-                } else if (terminal.buffer.active.cursorX == 0) {
-                    this.commandBuffer = this.commandBuffer.slice(0, -1);
-                    terminal.write(ansi.cursorUp + ansi.moveToColumn(terminal.cols) + ansi.deleteOnCursor);
-                    this.cursorRow--;
+                if (this.cursorPos > 0) {
+                    const newBuffer = this.commandBuffer.slice(0, this.cursorPos - 1) + this.commandBuffer.slice(this.cursorPos);
+                    this.rewriteBuffer(newBuffer, this.cursorPos - 1);
                 }
                 break;
 
             case '\t':
-                // TODO: When the completion makes the current line wrap, ensure this.cursorRow is valid
                 const completion = bash.tabComplete(this.commandBuffer);
                 if (completion) {
-                    this.clearInput();
-                    this.commandBuffer = completion;
-                    terminal.write(this.commandBuffer);
+                    this.rewriteBuffer(completion);
                 }
                 break;
 
             case ansi.cursorUp:
-                // TODO: When the history entry makes the line wrap, ensure this.cursorRow is valid
                 const upCommand = bash.historyUp();
                 if (upCommand) {
-                    this.clearInput();
-                    this.commandBuffer = upCommand;
-                    terminal.write(this.commandBuffer);
+                    this.rewriteBuffer(upCommand);
                 }
                 break;
 
             case ansi.cursorDown:
-                // TODO: When the history entry makes the line wrap, ensure this.cursorRow is valid
                 const downCommand = bash.historyDown();
                 if (downCommand) {
-                    this.clearInput();
-                    this.commandBuffer = downCommand;
-                    terminal.write(this.commandBuffer);
+                    this.rewriteBuffer(downCommand);
                 }
                 break;
 
             case ansi.cursorBackward:
-                if (
-                    (this.cursorRow === 0 && terminal.buffer.active.cursorX === this.promptLen + 2)
-                    || (this.commandBuffer.length === 0)
-                ) { return; }
+                if (this.cursorPos === 0) { return; }
 
-                if (terminal.buffer.active.cursorX === 0 && this.cursorRow > 0) {
-                    this.cursorRow--;
+                if (terminal.buffer.active.cursorX === 0) {
                     terminal.write(ansi.cursorUp + ansi.moveToColumn(terminal.cols));
                 } else {
                     terminal.write(ansi.cursorBackward);
                 }
+                this.cursorPos--;
                 break;
 
             case ansi.cursorForward:
-                if (
-                    !(this.promptLen + this.commandBuffer.length + 2
-                        > terminal.buffer.active.cursorX + terminal.cols * this.cursorRow)
-                ) { return; }
+                if (this.cursorPos === this.commandBuffer.length) { return; }
 
                 if (terminal.buffer.active.cursorX === terminal.cols - 1) {
-                    this.cursorRow++;
                     terminal.write(ansi.cursorDown + ansi.moveToBeginning);
                 } else {
                     terminal.write(ansi.cursorForward);
                 }
+                this.cursorPos++;
                 break;
 
             default:
-                // TODO: When the cursor isn't in a trivial position, ensure this.cursorRow increment still works
-                if (terminal.buffer.active.cursorX === terminal.cols) {
-                    this.cursorRow += 1;
-                    terminal.write(ansi.cursorDown + ansi.moveToBeginning);
-                }
-                this.commandBuffer += e;
-                terminal.write(e);
+                const newBuffer = this.commandBuffer.slice(0, this.cursorPos) + e + this.commandBuffer.slice(this.cursorPos);
+                this.rewriteBuffer(newBuffer, this.cursorPos + 1);
         }
     }
 
