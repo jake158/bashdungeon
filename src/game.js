@@ -35,15 +35,18 @@ export class Game {
         this.terminal.write((ansi.deleteLine + ansi.cursorUp).repeat(totalRows + 1));
         this.terminal.write('\r\n' + this.bash.getPrompt() + newBuffer);
 
-        // BUG: Backspace when line is wrapping causes weird behavior
+        // This is hellish and needs refactoring, but it works
         if (newCursorPos !== null) {
+            const totalNewRows = Math.floor((this.promptLen + newBuffer.length + 1) / this.terminal.cols);
             const newRow = Math.floor((this.promptLen + newPos + 1) / this.terminal.cols);
-            const rowsToMoveUp = totalRows - newRow;
+
+            const rowsToMoveUp = totalNewRows - newRow;
             if (rowsToMoveUp > 0) {
                 this.terminal.write(ansi.cursorUp.repeat(rowsToMoveUp));
             }
+
             const columnPos = (this.promptLen + 2 + newPos) % this.terminal.cols;
-            this.terminal.write(ansi.moveToColumn(columnPos + 1));
+            this.terminal.write(ansi.moveToColumn(columnPos === 0 ? this.terminal.cols : columnPos + 1));
         }
         this.cursorPos = newPos;
         this.commandBuffer = newBuffer;
