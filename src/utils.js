@@ -2,6 +2,7 @@
 
 export const ansi = {
     backspace: '\u007F',
+    altBackspace: '\x1b\x7f',
     cursorUp: '\x1b[A',
     cursorDown: '\x1b[B',
     cursorForward: '\x1b[C',
@@ -36,6 +37,27 @@ export function colorize(text, ...colorArgs) {
     const colorCodes = colorArgs.map(color => colors[color] || '').join('');
     return `${colorCodes}${text}${colors.reset}`;
 }
+
+
+// TODO: Bug: should not give back word the cursor is on
+export function closestLeftBoundary(input, offset) {
+    const words = input.slice(0, offset).match(/\b\w+\b/g) || [];
+    return words.length > 0 ? input.lastIndexOf(words[words.length - 1]) : 0;
+}
+
+export function closestRightBoundary(input, offset) {
+    const words = input.slice(offset).match(/\b\w+\b/g) || [];
+    return words.length > 0 ? offset + input.slice(offset).indexOf(words[0]) + words[0].length : input.length;
+}
+
+export function deleteWordToLeft(input, cursorPos) {
+    const boundaryPos = closestLeftBoundary(input, cursorPos);
+    return {
+        newBuffer: input.slice(0, boundaryPos) + input.slice(cursorPos),
+        newPos: boundaryPos
+    };
+}
+
 
 export const ascii = {
     welcome: `

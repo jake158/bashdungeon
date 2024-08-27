@@ -1,7 +1,7 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { BashEmulator } from './emulator/bash.js';
-import { colorize, ascii, ansi } from './utils.js';
+import { colorize, ascii, ansi, closestLeftBoundary, closestRightBoundary, deleteWordToLeft } from './utils.js';
 
 
 export class Game {
@@ -60,8 +60,8 @@ export class Game {
         const currentRow = this.#calculateCurrentRow(this.cursorPos);
 
         this.#moveCursorToBottom(totalRows, currentRow);
-        this.terminal.write((ansi.deleteLine + ansi.cursorUp).repeat(totalRows + 1));
-        this.terminal.write('\r\n' + this.bash.getPrompt() + newBuffer);
+        this.terminal.write((ansi.deleteLine + ansi.cursorUp).repeat(totalRows + 1)
+            + '\r\n' + this.bash.getPrompt() + newBuffer);
 
         const newPos = newCursorPos ?? newBuffer.length;
         if (newCursorPos !== null) {
@@ -69,6 +69,32 @@ export class Game {
         }
         this.cursorPos = newPos;
         this.commandBuffer = newBuffer;
+    }
+
+    #moveCursorToPosition(newPos) {
+        const direction = newPos > this.cursorPos ? ansi.cursorForward : ansi.cursorBackward;
+        const distance = Math.abs(newPos - this.cursorPos);
+        this.terminal.write(direction.repeat(distance));
+        this.cursorPos = newPos;
+    }
+
+    #handleAltArrow(key) {
+        if (key === 'D') {
+            const newPos = closestLeftBoundary(this.commandBuffer, this.cursorPos);
+            this.#moveCursorToPosition(newPos);
+        } else if (key === 'C') {
+            const newPos = closestRightBoundary(this.commandBuffer, this.cursorPos);
+            this.#moveCursorToPosition(newPos);
+        }
+    }
+
+    #handleAlt(e) {
+        if (e === ansi.altBackspace) {
+            const { newBuffer, newPos } = deleteWordToLeft(this.commandBuffer, this.cursorPos);
+            requestAnimationFrame(() => this.rewriteBuffer(newBuffer, newPos));
+            return;
+        }
+        this.#handleAltArrow(e.charAt(5));
     }
 
     async handleData(e) {
@@ -88,7 +114,7 @@ export class Game {
             case ansi.backspace:
                 if (this.cursorPos > 0) {
                     const newBuffer = this.commandBuffer.slice(0, this.cursorPos - 1) + this.commandBuffer.slice(this.cursorPos);
-                    requestAnimationFrame(() => this.rewriteBuffer(newBuffer, this.cursorPos - 1));
+                    this.rewriteBuffer(newBuffer, this.cursorPos - 1);
                 }
                 break;
 
@@ -109,7 +135,7 @@ export class Game {
             case ansi.cursorDown:
                 const downCommand = bash.historyDown();
                 if (downCommand) {
-                    this.rewriteBuffer(downCommand);
+                    this.rewriteBuffer(downCommand)
                 }
                 break;
 
@@ -136,8 +162,12 @@ export class Game {
                 break;
 
             default:
+                if (e.startsWith('\x1b')) {
+                    this.#handleAlt(e);
+                    return;
+                }
                 const newBuffer = this.commandBuffer.slice(0, this.cursorPos) + e + this.commandBuffer.slice(this.cursorPos);
-                requestAnimationFrame(() => this.rewriteBuffer(newBuffer, this.cursorPos + 1));
+                this.rewriteBuffer(newBuffer, this.cursorPos + 1);
         }
     }
 
