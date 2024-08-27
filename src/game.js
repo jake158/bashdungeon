@@ -27,71 +27,58 @@ export class Game {
     }
 
     #calculateTotalRows(bufferLength) {
-        return Math.floor((this.promptLen + bufferLength + 2) / this.terminal.cols);
+        return Math.floor((this.promptLen + bufferLength + 1) / this.terminal.cols);
     }
 
     #calculateCurrentRow(cursorPos) {
-        return Math.floor((this.promptLen + cursorPos + 1) / this.terminal.cols);
+        return Math.floor((this.promptLen + cursorPos + 2) / this.terminal.cols);
     }
 
-    #moveCursorToBottom(totalRows, currentRow) {
-        const rowsToMoveDown = totalRows - currentRow;
-        if (rowsToMoveDown > 0) {
-            this.terminal.write(ansi.cursorDown.repeat(rowsToMoveDown));
-        }
+    #calculateRowDifference(oldBufferLength, newCursorPos) {
+        const totalRows = this.#calculateTotalRows(oldBufferLength);
+        const currentRow = this.#calculateCurrentRow(newCursorPos);
+        return totalRows - currentRow;
     }
 
-    #moveCursorToSavedPosition(newBuffer, newPos) {
-        // TODO: Bug: when cursor is at col 0, it rewrites the prompt
-        // This function is still buggy
-        const totalNewRows = this.#calculateTotalRows(newBuffer.length - 1);
-        const newRow = this.#calculateCurrentRow(newPos);
+    #moveCursor(buffer, newPos) {
+        let out = '';
+        const rowDifference = this.#calculateRowDifference(buffer.length, newPos);
+        out += rowDifference > 0 ? ansi.cursorUp.repeat(rowDifference) : ansi.cursorDown.repeat(-rowDifference);
 
-        const rowsToMoveUp = totalNewRows - newRow;
-        if (rowsToMoveUp > 0) {
-            this.terminal.write(ansi.cursorUp.repeat(rowsToMoveUp));
-        }
         const columnPos = (this.promptLen + 2 + newPos) % this.terminal.cols;
-        this.terminal.write(ansi.moveToColumn(columnPos === 0 ? this.terminal.cols : columnPos + 1));
+        out += ansi.moveToColumn(columnPos + 1);
+        return out;
     }
 
     rewriteBuffer(newBuffer = "", newCursorPos = null) {
-        const totalRows = this.#calculateTotalRows(this.commandBuffer.length);
-        const currentRow = this.#calculateCurrentRow(this.cursorPos);
+        const rowDifference = this.#calculateRowDifference(this.commandBuffer.length, this.cursorPos);
+        const moveToLastRow = rowDifference > 0 ? ansi.cursorDown.repeat(rowDifference) : ansi.cursorUp.repeat(-rowDifference);
 
-        this.#moveCursorToBottom(totalRows, currentRow);
-        this.terminal.write((ansi.deleteLine + ansi.cursorUp).repeat(totalRows + 1)
-            + '\r\n' + this.bash.getPrompt() + newBuffer);
+        this.terminal.write(
+            moveToLastRow
+            + (ansi.deleteLine + ansi.cursorUp).repeat(this.#calculateTotalRows(this.commandBuffer.length) + 1)
+            + ('\r\n' + this.bash.getPrompt() + newBuffer)
+            + (newCursorPos !== null ? this.#moveCursor(newBuffer, newCursorPos) : '')
+        );
 
-        const newPos = newCursorPos ?? newBuffer.length;
-        if (newCursorPos !== null) {
-            this.#moveCursorToSavedPosition(newBuffer, newPos);
-        }
-        this.cursorPos = newPos;
+        this.cursorPos = newCursorPos ?? newBuffer.length;
         this.commandBuffer = newBuffer;
-    }
-
-    #moveCursorToPosition(newPos) {
-        const direction = newPos > this.cursorPos ? ansi.cursorForward : ansi.cursorBackward;
-        const distance = Math.abs(newPos - this.cursorPos);
-        this.terminal.write(direction.repeat(distance));
-        this.cursorPos = newPos;
     }
 
     #handleAltArrow(key) {
         if (key === 'D') {
             const newPos = closestLeftBoundary(this.commandBuffer, this.cursorPos);
-            this.#moveCursorToPosition(newPos);
+            this.rewriteBuffer(this.commandBuffer, newPos);
         } else if (key === 'C') {
             const newPos = closestRightBoundary(this.commandBuffer, this.cursorPos);
-            this.#moveCursorToPosition(newPos);
+            this.rewriteBuffer(this.commandBuffer, newPos);
         }
     }
 
-    #handleAlt(e) {
+    handleAlt(e) {
         if (e === ansi.altBackspace) {
             const { newBuffer, newPos } = deleteWordToLeft(this.commandBuffer, this.cursorPos);
-            requestAnimationFrame(() => this.rewriteBuffer(newBuffer, newPos));
+            this.rewriteBuffer(newBuffer, newPos);
             return;
         }
         this.#handleAltArrow(e.charAt(5));
@@ -163,7 +150,7 @@ export class Game {
 
             default:
                 if (e.startsWith('\x1b')) {
-                    this.#handleAlt(e);
+                    this.handleAlt(e);
                     return;
                 }
                 const newBuffer = this.commandBuffer.slice(0, this.cursorPos) + e + this.commandBuffer.slice(this.cursorPos);
