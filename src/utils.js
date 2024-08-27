@@ -39,15 +39,16 @@ export function colorize(text, ...colorArgs) {
 }
 
 
-// TODO: Bug: should not give back word the cursor is on
 export function closestLeftBoundary(input, offset) {
-    const words = input.slice(0, offset).match(/\b\w+\b/g) || [];
-    return words.length > 0 ? input.lastIndexOf(words[words.length - 1]) : 0;
+    const inputSlice = input.slice(0, offset);
+    const words = inputSlice.match(/\b\w+\b/g) || [];
+    return words.length > 0 ? inputSlice.lastIndexOf(words[words.length - 1]) : 0;
 }
 
 export function closestRightBoundary(input, offset) {
-    const words = input.slice(offset).match(/\b\w+\b/g) || [];
-    return words.length > 0 ? offset + input.slice(offset).indexOf(words[0]) + words[0].length : input.length;
+    const inputSlice = input.slice(offset);
+    const words = inputSlice.match(/\b\w+\b/g) || [];
+    return words.length > 0 ? offset + inputSlice.indexOf(words[0]) + words[0].length : input.length;
 }
 
 export function deleteWordToLeft(input, cursorPos) {
