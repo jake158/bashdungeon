@@ -71,7 +71,7 @@ export class TextCommands {
                         text = this.fileSystem.getFileContent(file);
                     }
 
-                    const regex = new RegExp(pattern, options.ignoreCase ? 'i' : '');
+                    const regex = new RegExp(pattern, 'g' + (options.ignoreCase ? 'i' : ''));
                     const lines = text.split('\n');
                     const results = [];
 
