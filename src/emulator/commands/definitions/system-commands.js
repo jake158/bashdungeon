@@ -6,6 +6,46 @@ export class SystemCommands {
         this.colorize = colorize;
     }
 
+    formatLsLong(items, now) {
+        const formatDate = (date) => {
+            const isCurrentYear = date.getFullYear() === now.getFullYear();
+            const month = date.toLocaleString('en-US', { month: 'short' });
+            const day = String(date.getDate()).padStart(2, ' ');
+            const timeOrYear = isCurrentYear
+                ? date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+                : ' ' + date.getFullYear();
+            return `${month} ${day} ${timeOrYear}`;
+        };
+
+        const maxLengths = {
+            permissions: 0,
+            links: 0,
+            username: 0,
+            groupname: 0,
+            size: 0,
+            date: 0
+        };
+
+        items.forEach(item => {
+            maxLengths.permissions = Math.max(maxLengths.permissions, item.permissions.length);
+            maxLengths.links = Math.max(maxLengths.links, String(item.links).length);
+            maxLengths.username = Math.max(maxLengths.username, item.username.length);
+            maxLengths.groupname = Math.max(maxLengths.groupname, item.groupname.length);
+            maxLengths.size = Math.max(maxLengths.size, String(item.size).length);
+        });
+
+        return items.map(item => {
+            const formattedDate = formatDate(item.modified);
+            return `${item.permissions.padEnd(maxLengths.permissions)} ` +
+                `${String(item.links).padStart(maxLengths.links)} ` +
+                `${item.username.padEnd(maxLengths.username)} ` +
+                `${item.groupname.padEnd(maxLengths.groupname)} ` +
+                `${String(item.size).padStart(maxLengths.size)} ` +
+                `${formattedDate} ${item.type === 'directory' ? this.colorize(item.name, 'bold', 'blue') : item.name}`;
+        }).join('\n');
+    }
+
+
     get() {
         return {
             'pwd': [
@@ -130,20 +170,10 @@ export class SystemCommands {
                     };
                     const result = this.fileSystem.ls(arg ? arg : '.', options);
 
-                    const formatResult = (item) => {
-                        const name = item.type === 'directory' ? this.colorize(item.name, 'bold', 'blue') : item.name;
-                        if (long) {
-                            return `${item.permissions} ${item.links} ${name}`;
-                        } else {
-                            return name;
-                        }
-                    };
+                    const output = long
+                        ? this.formatLsLong(result, new Date())
+                        : result.map(i => i.type === 'directory' ? this.colorize(i.name, 'bold', 'blue') : i.name).join('  ');
 
-                    if (!Array.isArray(result)) {
-                        return formatResult(result) + (multipleArgsMode && long ? '\n' : '  ');
-                    }
-
-                    const output = result.map(formatResult).join(long ? '\n' : '  ');
                     if (!multipleArgsMode) {
                         return output;
                     }

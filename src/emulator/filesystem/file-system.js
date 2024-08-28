@@ -118,11 +118,15 @@ export class FileSystem {
                 type: item.type,
                 permissions: item.permissions,
                 links: item.links,
+                username: item.username,
+                groupname: item.groupname,
+                size: item.fileSize,
+                modified: item.lastModified,
                 name: name ? name : item.name,
             });
 
             if (options.dir || item.type === 'file') {
-                return constructObject(item, path === '.' ? '.' : false);
+                return [constructObject(item, path === '.' ? '.' : false)];
             }
 
             const result = options.all
@@ -130,8 +134,6 @@ export class FileSystem {
                 : item.contents.filter(i => !i.name.startsWith('.')).map(i => constructObject(i));
 
             return result.sort((itemA, itemB) => {
-                if (itemA.type === 'directory' && itemB.type !== 'directory') { return -1; }
-                if (itemA.type !== 'directory' && itemB.type === 'directory') { return 1; }
                 const a = itemA.name.toLowerCase();
                 const b = itemB.name.toLowerCase();
                 return (a < b) ? -1 : (a > b) ? 1 : 0;
