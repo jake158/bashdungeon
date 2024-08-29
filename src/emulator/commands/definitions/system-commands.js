@@ -251,6 +251,7 @@ export class SystemCommands {
 
             'touch': [
                 (stdin, arg, flagMap) => {
+                    if (!arg) { throw new Error('missing file operand'); }
                     this.fileSystem.touch(arg, { noCreate: flagMap.has('-c') });
                     return '';
                 },
