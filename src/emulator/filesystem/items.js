@@ -68,6 +68,10 @@ class Item {
         return 0;
     }
 
+    updateLastModified() {
+        this.#lastModified = new Date();
+    }
+
     set parent(parent) {
         this.#parent = parent;
     }
@@ -76,17 +80,13 @@ class Item {
         if (this.#immutable) throw new Error('Permission denied');
         this.#parent.checkPermissions('write');
         this.#name = name;
-        updateLastModified();
+        this.updateLastModified();
     }
 
     set permissions(permissions) {
         if (this.#immutable) throw new Error('Permission denied');
         this.#permissions = permissions;
-        updateLastModified();
-    }
-
-    updateLastModified() {
-        this.#lastModified = new Date();
+        this.updateLastModified();
     }
 }
 
@@ -134,7 +134,7 @@ export class Dir extends Item {
         if (index !== -1) {
             if (this.#contents[index].immutable) throw new Error('Permission denied');
             this.#contents.splice(index, 1);
-            updateLastModified();
+            this.updateLastModified();
             return true;
         } else {
             return false;
@@ -145,7 +145,7 @@ export class Dir extends Item {
         this.checkPermissions('write');
         this.#contents.push(item);
         item.parent = this;
-        updateLastModified();
+        this.updateLastModified();
     }
 }
 
@@ -174,13 +174,13 @@ export class File extends Item {
         if (this.immutable) throw new Error('Permission denied');
         this.checkPermissions('write');
         this.#content = content;
-        updateLastModified();
+        this.updateLastModified();
     }
 
     appendContent(content) {
         if (this.immutable) throw new Error('Permission denied');
         this.checkPermissions('write');
         this.#content += content;
-        updateLastModified();
+        this.updateLastModified();
     }
 }

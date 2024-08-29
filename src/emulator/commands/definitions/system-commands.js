@@ -248,6 +248,20 @@ export class SystemCommands {
                     destinationArgLocations: ['-t', '--target-directory', -1]
                 }
             ],
+
+            'touch': [
+                (stdin, arg, flagMap) => {
+                    this.fileSystem.touch(arg, { noCreate: flagMap.has('-c') });
+                    return '';
+                },
+
+                {
+                    flags: {
+                        '-c': 'regular',
+                    },
+                    callForEachArg: true,
+                }
+            ]
         }
     }
 }

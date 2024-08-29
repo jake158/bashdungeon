@@ -286,4 +286,31 @@ export class FileSystem {
             item.permissions = parseChmodString(permString, item.permissions);
         }
     );
+
+    touch = this.#chainErrors(
+        (path, options = {}) => {
+            const absPath = this.#evaluatePath(path);
+            const item = this.#getItem(absPath);
+
+            if (item) {
+                item.updateLastModified();
+                return;
+            } else if (path.endsWith('/')) {
+                throw new Error('No such file or directory');
+            } else if (options.noCreate) {
+                return;
+            }
+            const parentDirPath = absPath.substring(0, absPath.lastIndexOf('/'));
+            const parentDir = this.#getItem(parentDirPath);
+
+            if (!parentDir || parentDir.type !== 'directory') {
+                throw new Error(`No such file or directory`);
+            }
+            const fileName = absPath.substring(absPath.lastIndexOf('/') + 1);
+
+            const newFile = new File(fileName, { content: '', permissions: this.#applyUmask('-rwxrwxrwx') });
+            parentDir.addItem(newFile);
+        },
+        'setting times of'
+    );
 }
