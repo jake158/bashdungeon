@@ -78,7 +78,9 @@ class Item {
 
     set name(name) {
         if (this.#immutable) throw new Error('Permission denied');
-        this.#parent.checkPermissions('write');
+        if (this.#parent) {
+            this.#parent.checkPermissions('write');
+        }
         this.#name = name;
         this.updateLastModified();
     }

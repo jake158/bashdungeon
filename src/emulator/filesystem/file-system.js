@@ -69,6 +69,62 @@ export class FileSystem {
         };
     }
 
+    #handleItemMove(sourcePath, destPath, operation) {
+        const sourceItem = this.#getItem(sourcePath);
+        if (!sourceItem) { throw new Error('No such file or directory'); }
+
+        const getDestinationInfo = (destPath) => {
+            const sep = destPath.lastIndexOf('/');
+            const destDirPath = sep === -1 ? this.#currentDirectory : destPath.substring(0, sep);
+            const destFileName = sep === -1 ? destPath : destPath.substring(sep + 1);
+            const destDir = this.#getItem(destDirPath);
+            return { destDir, destFileName };
+        };
+
+        const itemAtPath = this.#getItem(destPath);
+        const { destDir, destFileName } = itemAtPath && itemAtPath.type === 'directory'
+            ? { destDir: itemAtPath, destFileName: sourceItem.name }
+            : getDestinationInfo(destPath);
+
+        if (!destDir) { throw new Error(`'${destPath}': No such file or directory`); }
+
+        const copyItem = (item) => item.type === 'file'
+            ? new File(item.name, { content: item.content, permissions: item.permissions, username: item.username, groupname: item.groupname })
+            : new Dir(item.name, { permissions: item.permissions, username: item.username, groupname: item.groupname }, item.contents.map(copyItem));
+
+        const newItem = (operation === 'copy') ? copyItem(sourceItem) : sourceItem;
+
+        newItem.name = destFileName;
+        const sourceItemName = sourceItem.name;
+        destDir.removeItemByName(destFileName);
+        destDir.addItem(newItem);
+
+        const sourceDirPath = sourcePath.substring(0, sourcePath.lastIndexOf('/'));
+        const sourceDir = this.#getItem(sourceDirPath);
+        if (operation === 'move' && !Object.is(sourceDir, destDir)) {
+            sourceDir.removeItemByName(sourceItemName);
+        }
+    }
+
+    #rmRecurse(item, force, trace = '') {
+        if (item.permissions[2] != 'w' && !force) {
+            let notice = 'Attention: Real Bash prompts you when removing write protected files.\n';
+            notice += 'Currently, this emulator does not support prompting.\nTo remove the file, use the flag: `-f` (force).';
+            throw new Error(`${trace}${item.name} is write protected\n${notice}`)
+        }
+        let output = ``;
+
+        if (item.type === 'directory') {
+            while (item.contents.length > 0) {
+                const child = item.contents.pop();
+                output += this.#rmRecurse(child, force, `${trace + item.name}/`);
+            }
+        }
+        item.parent.removeItemByName(item.name, force);
+        output += `\nremoved ${item.type === 'directory' ? 'directory ' : ''}'${trace}${item.name}'`;
+        return output;
+    }
+
 
     get umask() {
         return this.#umask;
@@ -200,43 +256,6 @@ export class FileSystem {
         'failed to remove'
     );
 
-    #handleItemMove(sourcePath, destPath, operation) {
-        const sourceItem = this.#getItem(sourcePath);
-        if (!sourceItem) { throw new Error('No such file or directory'); }
-
-        const getDestinationInfo = (destPath) => {
-            const sep = destPath.lastIndexOf('/');
-            const destDirPath = sep === -1 ? this.#currentDirectory : destPath.substring(0, sep);
-            const destFileName = sep === -1 ? destPath : destPath.substring(sep + 1);
-            const destDir = this.#getItem(destDirPath);
-            return { destDir, destFileName };
-        };
-
-        const itemAtPath = this.#getItem(destPath);
-        const { destDir, destFileName } = itemAtPath && itemAtPath.type === 'directory'
-            ? { destDir: itemAtPath, destFileName: sourceItem.name }
-            : getDestinationInfo(destPath);
-
-        if (!destDir) { throw new Error(`'${destPath}': No such file or directory`); }
-
-        const copyItem = (item) => item.type === 'file'
-            ? new File(item.name, { content: item.content, permissions: item.permissions })
-            : new Dir(item.name, { permissions: item.permissions }, item.contents.map(copyItem));
-
-        const newItem = (operation === 'copy') ? copyItem(sourceItem) : sourceItem;
-
-        newItem.name = destFileName;
-        const sourceItemName = sourceItem.name;
-        destDir.removeItemByName(destFileName);
-        destDir.addItem(newItem);
-
-        const sourceDirPath = sourcePath.substring(0, sourcePath.lastIndexOf('/'));
-        const sourceDir = this.#getItem(sourceDirPath);
-        if (operation === 'move' && !Object.is(sourceDir, destDir)) {
-            sourceDir.removeItemByName(sourceItemName);
-        }
-    }
-
     cp = this.#chainErrors(
         (source, dest) => {
             this.#handleItemMove(this.#evaluatePath(source), this.#evaluatePath(dest), 'copy');
@@ -250,25 +269,6 @@ export class FileSystem {
         },
         'cannot move'
     );
-
-    #rmRecurse(item, force, trace = '') {
-        if (item.permissions[2] != 'w' && !force) {
-            let notice = 'Attention: Real Bash prompts you when removing write protected files.\n';
-            notice += 'Currently, this emulator does not support prompting.\nTo remove the file, use the flag: `-f` (force).';
-            throw new Error(`${trace}${item.name} is write protected\n${notice}`)
-        }
-        let output = ``;
-
-        if (item.type === 'directory') {
-            while (item.contents.length > 0) {
-                const child = item.contents.pop();
-                output += this.#rmRecurse(child, force, `${trace + item.name}/`);
-            }
-        }
-        item.parent.removeItemByName(item.name, force);
-        output += `\nremoved ${item.type === 'directory' ? 'directory ' : ''}'${trace}${item.name}'`;
-        return output;
-    }
 
     rm = this.#chainErrors(
         (path, options) => {
