@@ -26,7 +26,6 @@ export class BashEmulator extends EventEmitter {
      * @param {number} newCols
      */
     set terminalCols(newCols) {
-        console.log('calling in bash');
         this.#commandExecutor.terminalCols = Math.round(newCols);
     }
 
@@ -46,7 +45,7 @@ export class BashEmulator extends EventEmitter {
     }
 
     async executeCommand(command, stdin = '') {
-        const [commandName, ...args] = command.trim().split(/\s+/);
+        const [commandName, ...args] = command.match(/(?:[^\s"]+|"[^"]*")+/g);
         return this.#runProcess(
             commandName,
             (commandName, stdin, args) => this.#commandExecutor.execute(commandName, stdin, args),

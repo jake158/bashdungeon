@@ -205,6 +205,9 @@ export class SystemCommands {
                         all: flagMap.has('-a'),
                     };
                     const result = this.fileSystem.ls(arg ? arg : '.', options);
+                    result.map(item => {
+                        item.name = /\s/g.test(item.name) ? `'${item.name}'` : item.name;
+                    });
 
                     const output = long
                         ? this.formatLsLong(result, new Date())

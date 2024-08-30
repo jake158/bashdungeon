@@ -19,15 +19,40 @@ export class Game {
         this.fitAddon.fit();
 
         this.bash = new BashEmulator(() => this.terminal.reset(), colorize, this.terminal.cols);
+        this.commandBuffer = '';
+        this.promptLen = this.bash.getPrompt(false).length;
+        this.cursorPos = 0;
+        this.#setupCopyPaste();
 
         window.addEventListener('resize', () => {
             this.fitAddon.fit();
             this.bash.terminalCols = this.terminal.cols;
         });
+    }
 
-        this.commandBuffer = '';
-        this.promptLen = this.bash.getPrompt(false).length;
-        this.cursorPos = 0;
+    #setupCopyPaste() {
+        const handleC = () => {
+            this.terminal.write('^C' + '\r\n' + this.bash.getPrompt());
+            this.commandBuffer = '';
+            this.cursorPos = 0;
+        }
+        const handleV = () => {
+            const newBuffer =
+                this.commandBuffer.slice(0, this.cursorPos)
+                + '^V'
+                + this.commandBuffer.slice(this.cursorPos);
+            this.rewriteBuffer(newBuffer, this.cursorPos + 2);
+        }
+
+        this.terminal.attachCustomKeyEventHandler(ev => {
+            if (ev.type === 'keydown' && (ev.code === 'KeyC' || ev.code === 'KeyV') && ev.ctrlKey && !ev.shiftKey) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                ev.code === 'KeyC' ? handleC() : handleV();
+                return false;
+            }
+            return true;
+        });
     }
 
     #calculateTotalRows(bufferLength) {
@@ -157,8 +182,10 @@ export class Game {
                     this.handleAlt(e);
                     return;
                 }
+                // TODO: handle special characters on paste
+                e  = e.replace(/(\r\n|\n|\r)/gm, "");
                 const newBuffer = this.commandBuffer.slice(0, this.cursorPos) + e + this.commandBuffer.slice(this.cursorPos);
-                this.rewriteBuffer(newBuffer, this.cursorPos + 1);
+                this.rewriteBuffer(newBuffer, this.cursorPos + e.length);
         }
     }
 
