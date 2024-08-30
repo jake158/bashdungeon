@@ -138,15 +138,23 @@ export class SystemCommands {
             ],
 
             'mkdir': [
-                (stdin, arg) => {
+                (stdin, arg, flagMap) => {
                     if (!arg) {
                         throw new Error('missing operand');
                     }
-                    this.fileSystem.mkdir(arg);
-                    return '';
+                    return this.fileSystem.mkdir(arg, {
+                        parents: flagMap.has('-p') || flagMap.has('--parents'),
+                        verbose: flagMap.has('-v') || flagMap.has('--verbose')
+                    });
                 },
 
                 {
+                    flags: {
+                        '-p': 'regular',
+                        '--parents': 'regular',
+                        '-v': 'regular',
+                        '--verbose': 'regular',
+                    },
                     callForEachArg: true
                 }
             ],

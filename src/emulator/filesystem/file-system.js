@@ -15,8 +15,8 @@ export class FileSystem {
         this.#previousDirectory = this.#currentDirectory;
         this.#umask = '0002';
 
-        this.tree = ROOT;
-        this.tree.parent = this.tree;
+        this.root = ROOT;
+        this.root.parent = this.root;
     }
 
     #evaluatePath(path) {
@@ -40,7 +40,7 @@ export class FileSystem {
 
     #getItem(path) {
         const parts = path.split('/').filter(Boolean);
-        let curr = this.tree;
+        let curr = this.root;
 
         for (const part of parts) {
             const item = curr.findItemByName(part);
@@ -217,22 +217,30 @@ export class FileSystem {
     );
 
     mkdir = this.#chainErrors(
-        (path) => {
-            const absolutePath = this.#evaluatePath(path);
-            const sep = absolutePath.lastIndexOf('/');
-            const directory = this.#getItem(absolutePath.substring(0, sep));
-            const dirname = absolutePath.substring(sep + 1);
+        (path, options) => {
+            const segments = this.#evaluatePath(path).split('/').filter(Boolean);
+            let currentDir = this.root;
+            let dirName;
+            let output = '';
 
-            if (!directory) {
-                throw new Error('No such file or directory');
-            } else if (directory.type != 'directory') {
-                throw new Error('Not a directory');
-            } else if (!dirname || directory.findItemByName(dirname)) {
-                throw new Error('File exists');
+            for (let i = 0; i < segments.length; i++) {
+                dirName = segments[i];
+                const nextDir = currentDir.findItemByName(dirName);
+
+                if (nextDir) {
+                    if (nextDir.type !== 'directory') throw new Error('Not a directory');
+                    currentDir = nextDir;
+                    continue;
+                } else if (i === segments.length - 1 || options.parents) {
+                    const newDir = new Dir(dirName, { permissions: this.#applyUmask('drwxrwxrwx') });
+                    currentDir.addItem(newDir);
+                    output += (options.verbose ? `mkdir: created directory '${dirName}'\n` : '');
+                    currentDir = newDir;
+                } else {
+                    throw new Error('No such file or directory');
+                }
             }
-
-            const newDir = new Dir(dirname, { permissions: this.#applyUmask('drwxrwxrwx') });
-            directory.addItem(newDir);
+            return output.trim();
         },
         'cannot create directory'
     );
