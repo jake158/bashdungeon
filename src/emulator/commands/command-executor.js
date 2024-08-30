@@ -6,9 +6,10 @@ import { parseArgs } from './parse-args.js';
 export class CommandExecutor {
     #commands;
 
-    constructor(fileSystem, colorize = (text) => text) {
+    constructor(fileSystem, colorize = (text) => text, terminalCols = null) {
         this.fileSystem = fileSystem;
         this.colorize = colorize;
+        this.terminalCols = terminalCols;
         this.#commands = {};
         this.#initializeCommands();
     }
@@ -44,7 +45,10 @@ export class CommandExecutor {
                     stdin,
                     destinationArgs ? [arg, dest] : arg,
                     flagMap,
-                    positionalArgs.length > 1
+                    {
+                        multipleArgsMode: positionalArgs.length > 1,
+                        terminalCols: this.terminalCols,
+                    }
                 );
             }
             catch (error) {

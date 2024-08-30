@@ -10,16 +10,24 @@ export class BashEmulator extends EventEmitter {
     #history;
     #historyIndex;
 
-    constructor(clearTerminal = () => '', colorize = (text) => text) {
+    constructor(clearTerminal = () => '', colorize = (text) => text, terminalCols = null) {
         super();
         this.colorize = colorize;
         this.#fileSystem = new FileSystem();
-        this.#commandExecutor = new CommandExecutor(this.#fileSystem, colorize);
+        this.#commandExecutor = new CommandExecutor(this.#fileSystem, colorize, terminalCols);
         this.#history = [];
         this.#historyIndex = 0;
 
         this.#commandExecutor.set('clear', clearTerminal);
         this.#commandExecutor.set('history', () => this.#history.map((line, index) => ` ${index + 1}  ${line}`).join('\n'));
+    }
+
+    /**
+     * @param {number} newCols
+     */
+    set terminalCols(newCols) {
+        console.log('calling in bash');
+        this.#commandExecutor.terminalCols = Math.round(newCols);
     }
 
     #pushToHistory(command) {

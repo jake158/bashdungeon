@@ -6,6 +6,34 @@ export class SystemCommands {
         this.colorize = colorize;
     }
 
+    formatLsShort(items, terminalCols) {
+        if (items.length === 0 || terminalCols <= 0) {
+            return '';
+        }
+        const maxItemWidth = items.reduce((maxWidth, i) => Math.max(maxWidth, i.name.length), 0);
+        const cols = Math.max(Math.floor(terminalCols / (maxItemWidth + 1)), 1);
+        const rows = Math.ceil(items.length / cols);
+
+        let output = '';
+
+        for (let row = 0; row < rows; row++) {
+            let line = '';
+            for (let col = 0; col < cols; col++) {
+                const index = col * rows + row;
+                if (index < items.length) {
+                    const item = items[index];
+                    const paddedItem = (item.type === 'directory'
+                        ? this.colorize(item.name, 'bold', 'blue')
+                        : item.name
+                    ) + ' '.repeat(maxItemWidth - item.name.length + 1);
+                    line += paddedItem;
+                }
+            }
+            output += line.trimEnd() + '\n';
+        }
+        return output.trimEnd();
+    }
+
     formatLsLong(items, now) {
         const formatDate = (date) => {
             const isCurrentYear = date.getFullYear() === now.getFullYear();
@@ -162,7 +190,7 @@ export class SystemCommands {
             ],
 
             'ls': [
-                (stdin, arg, flagMap, multipleArgsMode = false) => {
+                (stdin, arg, flagMap, info) => {
                     const long = flagMap.has('-l');
                     const options = {
                         dir: flagMap.has('-d'),
@@ -172,9 +200,9 @@ export class SystemCommands {
 
                     const output = long
                         ? this.formatLsLong(result, new Date())
-                        : result.map(i => i.type === 'directory' ? this.colorize(i.name, 'bold', 'blue') : i.name).join('  ');
+                        : this.formatLsShort(result, info.terminalCols)
 
-                    if (!multipleArgsMode) {
+                    if (!info.multipleArgsMode) {
                         return output;
                     }
                     return `\n${arg.replace('~', this.fileSystem.homeDirectory)}:\n${output}\n`;

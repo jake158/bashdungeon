@@ -17,9 +17,13 @@ export class Game {
         this.fitAddon = new FitAddon();
         this.terminal.loadAddon(this.fitAddon);
         this.fitAddon.fit();
-        window.addEventListener('resize', () => this.fitAddon.fit());
 
-        this.bash = new BashEmulator(() => this.terminal.reset(), colorize);
+        this.bash = new BashEmulator(() => this.terminal.reset(), colorize, this.terminal.cols);
+
+        window.addEventListener('resize', () => {
+            this.fitAddon.fit();
+            this.bash.terminalCols = this.terminal.cols;
+        });
 
         this.commandBuffer = '';
         this.promptLen = this.bash.getPrompt(false).length;

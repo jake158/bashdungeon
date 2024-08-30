@@ -45,12 +45,12 @@ export class TextCommands {
             ],
 
             'cat': [
-                (stdin, arg, flagMap, multipleArgsMode = false) => {
+                (stdin, arg, flagMap, info) => {
                     if (!arg) {
                         return stdin;
                     }
                     let output = this.fileSystem.getFileContent(arg);
-                    output += multipleArgsMode && output ? '\n' : '';
+                    output += info.multipleArgsMode && output ? '\n' : '';
                     return output;
                 },
 
@@ -60,7 +60,7 @@ export class TextCommands {
             ],
 
             'grep': [
-                (stdin, [file, pattern], flagMap, multipleArgsMode = false) => {
+                (stdin, [file, pattern], flagMap, info) => {
                     let text = stdin;
                     const options = {
                         ignoreCase: flagMap.has('-i'),
@@ -81,13 +81,13 @@ export class TextCommands {
                             if (options.lineNumbers) {
                                 outputLine = `${this.colorize(index + 1, 'green')}${this.colorize(':', 'cyan')}${outputLine}`;
                             }
-                            if (multipleArgsMode) {
+                            if (info.multipleArgsMode) {
                                 outputLine = `${this.colorize(file, 'magenta')}${this.colorize(':', 'cyan')}${outputLine}`;
                             }
                             results.push(outputLine);
                         }
                     });
-                    return results.join('\n') + (multipleArgsMode ? '\n' : '');
+                    return results.join('\n') + (info.multipleArgsMode ? '\n' : '');
                 },
 
                 {
