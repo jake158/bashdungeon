@@ -120,6 +120,17 @@ export class FileSystem {
         return output;
     }
 
+    #wildcardToRegex(pattern) {
+        // Escape regex special characters except for * and ?
+        let escapedPattern = pattern.replace(/[.+^$(){}|\\]/g, '\\$&');
+        // Handle the negation character set [!...] by converting it to a regex equivalent
+        escapedPattern = escapedPattern.replace(/\[!(.+?)\]/g, '[^$1]');
+        // Replace * with .* to match any number of characters
+        // Replace ? with . to match a single character
+        escapedPattern = escapedPattern.replace(/\*/g, '.*').replace(/\?/g, '.');
+        return new RegExp(`^${escapedPattern}$`);
+    }
+
 
     get umask() {
         return this.#umask;
@@ -138,6 +149,26 @@ export class FileSystem {
             throw new Error('value must be of the format: 0?[0-7][0-7][0-7]');
         }
         this.#umask = value.padStart(4, '0');
+    }
+
+    matchFiles(pattern) {
+        // TODO: Add { } handling
+        const absolutePath = this.#evaluatePath(pattern);
+        const sepIndex = absolutePath.lastIndexOf('/');
+        const baseDirPath = sepIndex === -1 ? this.#currentDirectory : absolutePath.substring(0, sepIndex);
+        const basePattern = sepIndex === -1 ? pattern : absolutePath.substring(sepIndex + 1);
+        const isRelativePath = baseDirPath === this.#currentDirectory;
+
+        const baseDir = this.#getItem(baseDirPath);
+        if (!baseDir || baseDir.type !== 'directory') {
+            throw new Error(`'${baseDirPath}': No such file or directory`);
+        }
+        const regex = this.#wildcardToRegex(basePattern);
+
+        const matches = baseDir.contents
+            .filter(item => regex.test(item.name) && (basePattern.startsWith('.') || !item.name.startsWith('.')))
+            .map(item => `${isRelativePath ? '' : baseDirPath + '/'}${item.name}`);
+        return matches.sort();
     }
 
     isDirectory(path) {
@@ -227,7 +258,7 @@ export class FileSystem {
                     currentDir = nextDir;
                     continue;
                 } else if (i === segments.length - 1 || options.parents) {
-                    const newDir = new Dir(dirName, { permissions: applyUmask('drwxrwxrwx', this.umask) });
+                    const newDir = new Dir(dirName, [], { permissions: applyUmask('drwxrwxrwx', this.umask) });
                     currentDir.addItem(newDir);
                     output += (options.verbose ? `mkdir: created directory '${dirName}'\n` : '');
                     currentDir = newDir;
@@ -311,7 +342,7 @@ export class FileSystem {
             }
             const fileName = absPath.substring(absPath.lastIndexOf('/') + 1);
 
-            const newFile = new File(fileName, { content: '', permissions: applyUmask('-rw-rw-rw-', this.umask) });
+            const newFile = new File(fileName, '', { permissions: applyUmask('-rw-rw-rw-', this.umask) });
             parentDir.addItem(newFile);
         },
         'setting times of'

@@ -58,6 +58,14 @@ export class CommandExecutor {
         return { stdin: '', stdout: stdout.trim(), stderr: stderr.trim() };
     }
 
+    #expandWildcards(positionalArgs) {
+        return positionalArgs.flatMap(arg => {
+            if (!/[*?[\]]/.test(arg)) return arg;
+            const matches = this.fileSystem.matchFiles(arg);
+            return matches.length > 0 ? matches : arg;
+        });
+    }
+
     #command(name, func, settings = {}) {
         const {
             flags = {},
@@ -68,21 +76,25 @@ export class CommandExecutor {
 
         return (stdin, args) => {
             try {
+                // TODO: parseArgs removes single quotes but those are necessary for ignoring wildcards
                 const { positionalArgs, flagMap } = parseArgs(args, flags);
+                const expandedArgs = positionalArgs.length > 0
+                    ? this.#expandWildcards(positionalArgs)
+                    : positionalArgs;
 
                 if (callForEachArg) {
                     return this.#executeMultipleArgs(
                         name,
                         func,
                         stdin,
-                        positionalArgs,
+                        expandedArgs,
                         flagMap,
                         destinationArgLocations,
                         sortArgs
                     );
                 }
 
-                return { stdin: '', stdout: func(stdin, positionalArgs, flagMap), stderr: '' };
+                return { stdin: '', stdout: func(stdin, expandedArgs, flagMap), stderr: '' };
             } catch (error) {
                 return { stdin: '', stdout: '', stderr: `${name}: ${error.message}` };
             }
