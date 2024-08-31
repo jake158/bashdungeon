@@ -59,7 +59,7 @@ export class SystemCommands {
             maxLengths.links = Math.max(maxLengths.links, String(item.links).length);
             maxLengths.username = Math.max(maxLengths.username, item.username.length);
             maxLengths.groupname = Math.max(maxLengths.groupname, item.groupname.length);
-            maxLengths.size = Math.max(maxLengths.size, String(item.size).length);
+            maxLengths.size = Math.max(maxLengths.size, String(item.size).length, 2);
         });
 
         return items.map(item => {
@@ -204,7 +204,9 @@ export class SystemCommands {
                         dir: flagMap.has('-d'),
                         all: flagMap.has('-a'),
                     };
-                    const result = this.fileSystem.ls(arg ? arg : '.', options);
+                    arg = arg ? arg : '.';
+                    const result = this.fileSystem.ls(arg, options);
+
                     result.map(item => {
                         item.name = /\s/g.test(item.name) ? `'${item.name}'` : item.name;
                     });
@@ -216,7 +218,9 @@ export class SystemCommands {
                     if (!info.multipleArgsMode) {
                         return output;
                     }
-                    return `\n${arg.replace('~', this.fileSystem.homeDirectory)}:\n${output}\n`;
+                    return this.fileSystem.isDirectory(arg)
+                        ? `\n${arg.replace('~', this.fileSystem.homeDirectory)}:\n${output}\n`
+                        : `${output}\n`;
                 },
 
                 {

@@ -168,7 +168,12 @@ export class FileSystem {
         const matches = baseDir.contents
             .filter(item => regex.test(item.name) && (basePattern.startsWith('.') || !item.name.startsWith('.')))
             .map(item => `${isRelativePath ? '' : baseDirPath + '/'}${item.name}`);
-        return matches.sort();
+
+        return matches.sort((itemA, itemB) => {
+            const a = itemA.toLowerCase();
+            const b = itemB.toLowerCase();
+            return (a < b) ? -1 : (a > b) ? 1 : 0;
+        });
     }
 
     isDirectory(path) {
