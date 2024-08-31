@@ -1,6 +1,6 @@
 import { ROOT } from './levels.js';
 import { Dir, File } from './items.js';
-import { octalToPerms, permsToOctal, parseChmodString } from './file-system-utils.js';
+import { applyUmask, parseChmodString } from './file-system-utils.js';
 
 
 export class FileSystem {
@@ -51,12 +51,6 @@ export class FileSystem {
             }
         }
         return curr;
-    }
-
-    #applyUmask(permissions) {
-        const permOctal = permsToOctal(permissions);
-        const result = permOctal - this.#umask;
-        return octalToPerms(result.toString().padStart(3, '0'), permissions[0] === 'd');
     }
 
     #chainErrors(func, message = null) {
@@ -232,7 +226,7 @@ export class FileSystem {
                     currentDir = nextDir;
                     continue;
                 } else if (i === segments.length - 1 || options.parents) {
-                    const newDir = new Dir(dirName, { permissions: this.#applyUmask('drwxrwxrwx') });
+                    const newDir = new Dir(dirName, { permissions: applyUmask('drwxrwxrwx', this.umask) });
                     currentDir.addItem(newDir);
                     output += (options.verbose ? `mkdir: created directory '${dirName}'\n` : '');
                     currentDir = newDir;
@@ -316,7 +310,7 @@ export class FileSystem {
             }
             const fileName = absPath.substring(absPath.lastIndexOf('/') + 1);
 
-            const newFile = new File(fileName, { content: '', permissions: this.#applyUmask('-rwxrwxrwx') });
+            const newFile = new File(fileName, { content: '', permissions: applyUmask('-rw-rw-rw-', this.umask) });
             parentDir.addItem(newFile);
         },
         'setting times of'

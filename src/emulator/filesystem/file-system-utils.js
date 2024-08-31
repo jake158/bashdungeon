@@ -1,6 +1,6 @@
 
 
-export function permsToOctal(perms) {
+function permsToOctal(perms) {
     const permissionBits = { 'r': 4, 'w': 2, 'x': 1, '-': 0 };
     let octal = '';
 
@@ -14,10 +14,9 @@ export function permsToOctal(perms) {
     return octal;
 }
 
-export function octalToPerms(octal, isDirectory = false) {
+function octalToPerms(octal, isDirectory = false) {
     const permissionChars = { 4: 'r', 2: 'w', 1: 'x', 0: '-' };
-    const typeChar = isDirectory ? 'd' : '-';
-    let perms = typeChar;
+    let perms = isDirectory ? 'd' : '-';
 
     for (let i = 0; i < octal.length; i++) {
         let value = parseInt(octal[i], 8);
@@ -26,6 +25,12 @@ export function octalToPerms(octal, isDirectory = false) {
         perms += permissionChars[(value & 1)];
     }
     return perms;
+}
+
+export function applyUmask(permissions, umask) {
+    const permOctal = permsToOctal(permissions);
+    const result = permOctal - umask;
+    return octalToPerms(result.toString().padStart(3, '0'), permissions[0] === 'd');
 }
 
 
@@ -54,6 +59,8 @@ function _processMode(mode, permissions) {
 
     while ((match = regex.exec(mode)) !== null) {
         let [fullMatch, groups, operator, perms] = match;
+        // TODO: Implement umask handling
+        // const aIsImplicit = (!prev && !groups);
         groups = prev || groups || 'a';
         prev = groups;
 
@@ -71,8 +78,6 @@ function _processMode(mode, permissions) {
 }
 
 function _applyPermissions(groups, operator, perms, permissions) {
-    // Implement umask!!!
-
     const indices = {
         'u': [1, 2, 3],
         'g': [4, 5, 6],
