@@ -83,9 +83,10 @@ export class FileSystem {
         if (!destDir) { throw new Error(`'${destPath}': No such file or directory`); }
 
         const copyItem = (item) => item.type === 'file'
-            ? new File(item.name, { content: item.content, permissions: item.permissions, username: item.username, groupname: item.groupname })
-            : new Dir(item.name, { permissions: item.permissions, username: item.username, groupname: item.groupname }, item.contents.map(copyItem));
+            ? new File(item.name, item.content, { permissions: item.permissions, username: item.username, groupname: item.groupname })
+            : new Dir(item.name, item.contents.map(copyItem), { permissions: item.permissions, username: item.username, groupname: item.groupname });
 
+        // This makes cp -r fail when it encounters any unreadable file. Unreadable files should be skipped when copying.
         const newItem = (operation === 'copy') ? copyItem(sourceItem) : sourceItem;
 
         newItem.name = destFileName;
@@ -101,17 +102,17 @@ export class FileSystem {
     }
 
     #rmRecurse(item, force, trace = '') {
-        if (item.permissions[2] != 'w' && !force) {
-            let notice = 'Attention: Real Bash prompts you when removing write protected files.\n';
-            notice += 'Currently, this emulator does not support prompting.\nTo remove the file, use the flag: `-f` (force).';
-            throw new Error(`${trace}${item.name} is write protected\n${notice}`)
+        if (item.immutable) {
+            throw new Error(`Permission denied: ${item.name} is immutable`);
+        } else if (item.permissions[2] != 'w' && !force) {
+            // TODO: Add prompting to remove write protected files
+            throw new Error(`${trace}${item.name} is write protected`);
         }
         let output = ``;
 
         if (item.type === 'directory') {
             while (item.contents.length > 0) {
-                const child = item.contents.pop();
-                output += this.#rmRecurse(child, force, `${trace + item.name}/`);
+                output += this.#rmRecurse(item.contents[0], force, `${trace + item.name}/`);
             }
         }
         item.parent.removeItemByName(item.name, force);

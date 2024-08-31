@@ -1,19 +1,99 @@
-import { Dir, File } from './items.js';
+import { Item } from './items.js';
 
 
-export const ROOT = new Dir('/', { immutable: true }, [
-    new Dir('home', { immutable: true }, [
-        new Dir('wizard', { immutable: true }, [
-            new Dir('Dungeon', { immutable: true }, [
-                new File('file1.txt', { content: 'file1 yo\nhello YO yo\n yo hello HI\n hello test' }),
-                new File('emptyfile.txt'),
-                new File('.test', { content: 'hidden immutable file yo', immutable: true }),
-                new File('unreadable.txt', { content: 'unreadable yo', permissions: '--wx------', lastModified: new Date(2017, 0, 1) }),
-                new Dir('noexecute', { permissions: 'drw-------' }),
-                new Dir('noread', { permissions: 'd-wx------' }),
-                new Dir('nowrite', { permissions: 'dr-x------' }, [new File('denied')])
-            ])
-        ])
-    ])
-]);
+export const ROOT = Item.fromJSON({
+    "type": "directory",
+    "name": "/",
+    "options": {
+        "immutable": true
+    },
+    "contents": [
+        {
+            "type": "directory",
+            "name": "home",
+            "options": {
+                "immutable": true
+            },
+            "contents": [
+                {
+                    "type": "directory",
+                    "name": "wizard",
+                    "options": {
+                        "immutable": true
+                    },
+                    "contents": [
+                        {
+                            "type": "directory",
+                            "name": "Dungeon",
+                            "options": {
+                                "immutable": true
+                            },
+                            "contents": getTestFiles()
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+});
 
+
+function getTestFiles() {
+    return [
+        {
+            "type": "file",
+            "name": "file1.txt",
+            "content": "file1 yo\nhello YO yo\n yo hello HI\n hello test",
+        },
+        {
+            "type": "file",
+            "name": "emptyfile.txt",
+        },
+        {
+            "type": "file",
+            "name": ".test",
+            "content": "hidden immutable file yo",
+            "options": {
+                "immutable": true
+            }
+        },
+        {
+            "type": "file",
+            "name": "unreadable.txt",
+            "content": "unreadable yo",
+            "options": {
+                "permissions": "--wx------",
+                "lastModified": new Date(2017, 0, 1).toISOString()
+            }
+        },
+        {
+            "type": "directory",
+            "name": "noexecute",
+            "options": {
+                "permissions": "drw-------"
+            }
+        },
+        {
+            "type": "directory",
+            "name": "noread",
+            "options": {
+                "permissions": "d-wx------"
+            }
+        },
+        {
+            "type": "directory",
+            "name": "nowrite",
+            "options": {
+                "permissions": "dr-x------"
+            },
+            "contents": [
+                {
+                    "type": "file",
+                    "name": "denied",
+                    "content": "can't delete this",
+                    "options": {}
+                }
+            ]
+        }
+    ]
+}
