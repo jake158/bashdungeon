@@ -1,7 +1,6 @@
 import { EventEmitter } from "./event-emitter.js";
 import { FileSystem } from './filesystem/file-system.js';
 import { CommandExecutor } from './commands/command-executor.js';
-import { Process } from "./process.js";
 
 
 export class BashEmulator extends EventEmitter {
@@ -18,8 +17,10 @@ export class BashEmulator extends EventEmitter {
         this.#history = [];
         this.#historyIndex = 0;
 
-        this.#commandExecutor.set('clear', clearTerminal);
-        this.#commandExecutor.set('history', () => this.#history.map((line, index) => ` ${index + 1}  ${line}`).join('\n'));
+        this.#commandExecutor.setCommand('clear', clearTerminal);
+        this.#commandExecutor.setCommand('history', () => this.#history.map((line, index) => ` ${index + 1}  ${line}`).join('\n'));
+
+        this.#commandExecutor.on('command', (commandName, stdin, args) => this.emit('command', commandName, stdin, args));
     }
 
     /**
@@ -37,22 +38,6 @@ export class BashEmulator extends EventEmitter {
         }
     }
 
-    async #runProcess(name, func, args = [], type = 'systemProcess') {
-        const process = new Process(name, func, args);
-        process.on('start', (name) => this.emit('processStart', name, type, process));
-        process.on('end', (name) => this.emit('processEnd', name, type, process));
-        return process.run();
-    }
-
-    async executeCommand(command, stdin = '') {
-        const [commandName, ...args] = command.match(/(?:[^\s"]+|"[^"]*")+/g);
-        return this.#runProcess(
-            commandName,
-            (commandName, stdin, args) => this.#commandExecutor.execute(commandName, stdin, args),
-            [commandName, stdin, args],
-            'userCommand');
-    }
-
     async #parseAndExecute(input) {
         const regex = /\|\||\||&&|&>|&|;|<>|<|2>>|2>|>>/g;
         const commands = input.split(regex).map(cmd => cmd.trim()).filter(cmd => cmd !== '');
@@ -64,25 +49,26 @@ export class BashEmulator extends EventEmitter {
 
         pipeline:
         for (let i = 0; i < commands.length; i++) {
+            const inPipe = i !== commands.length - 1;
             switch (operators[i]) {
                 case ';':
-                    result = await this.executeCommand(commands[i]);
+                    result = await this.#commandExecutor.executeCommand(commands[i], '', inPipe);
                     break;
                 case '||':
                     if (!result.stderr) { break pipeline; }
-                    result = await this.executeCommand(commands[i]);
+                    result = await this.#commandExecutor.executeCommand(commands[i], '', inPipe);
                     break;
                 case '&&':
                     if (result.stderr) { break pipeline; }
-                    result = await this.executeCommand(commands[i]);
+                    result = await this.#commandExecutor.executeCommand(commands[i], '', inPipe);
                     break;
                 case '|':
-                    if (!result.stderr) outputStream.pop();
-                    result = await this.executeCommand(commands[i], result.stdout);
+                    outputStream.pop();
+                    result = await this.#commandExecutor.executeCommand(commands[i], result.stdout, inPipe);
                     break;
                 case '2>':
                     outputStream.pop();
-                    result = await this.executeCommand(commands[i], result.stderr);
+                    result = await this.#commandExecutor.executeCommand(commands[i], result.stderr, inPipe);
                     break;
                 default:
                     outputStream.push(`${operators[i]}: operator not implemented`);
