@@ -1,14 +1,6 @@
 
 
-const processQuotes = (str) => {
-    if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
-        return str.slice(1, -1);
-    }
-    return str.replace(/\\(?!\\)/g, '');
-};
-
-
-export const parseArgs = (args, flags) => {
+export const getFlags = (args, flags) => {
     const flagMap = new Map();
     const positionalArgs = [];
 
@@ -71,10 +63,8 @@ export const parseArgs = (args, flags) => {
         return index;
     };
 
-    const processedArgs = args.map(e => processQuotes(e));
-
-    for (let i = 0; i < processedArgs.length; i++) {
-        let arg = processedArgs[i];
+    for (let i = 0; i < args.length; i++) {
+        let arg = args[i];
 
         if (arg.startsWith('--') && arg.length > 2) {
             i = handleLongFlag(arg, i);

@@ -1,16 +1,30 @@
-import { SystemCommands } from './definitions/system-commands.js';
-import { TextCommands } from './definitions/text-commands.js';
-import { parseArgs } from './parse-args.js';
+import { EventEmitter } from '../event-emitter.js';
+import { getFlags } from './get-flags.js';
+import { SYSTEM_COMMANDS } from './system-commands.js';
+import { TEXT_COMMANDS } from './text-commands.js';
 
 
-export class CommandExecutor {
+export class CommandExecutor extends EventEmitter {
     #commands;
+    #env;
 
     constructor(fileSystem, colorize = (text) => text, terminalCols = null) {
+        super();
         this.fileSystem = fileSystem;
         this.colorize = colorize;
         this.terminalCols = terminalCols;
-        this.#commands = {};
+        this.#env = {
+            SHELL: '/bin/bash',
+            // TODO: Do not hardcode:
+            USER: 'wizard',
+            LANGUAGE: 'en_US',
+        };
+        this.#commands = {
+            // TODO: Implement
+            env: this.#command('env', (stdin, args) => {
+                return Object.entries(this.#env).map(([key, value]) => `${key}=${value}`).join('\n');
+            })
+        };
         this.#initializeCommands();
     }
 
@@ -32,7 +46,7 @@ export class CommandExecutor {
         return dest;
     }
 
-    #executeMultipleArgs(name, func, stdin, positionalArgs, flagMap, destinationArgs, sortArgs) {
+    #executeMultipleArgs(name, func, stdin, inPipe, positionalArgs, flagMap, destinationArgs, sortArgs) {
         const dest = destinationArgs ? this.#popDestinationArg(positionalArgs, flagMap, destinationArgs) : null;
         if (sortArgs) { positionalArgs.sort(sortArgs); }
         if (positionalArgs.length === 0) { positionalArgs.push(null); }
@@ -48,6 +62,7 @@ export class CommandExecutor {
                     {
                         multipleArgsMode: positionalArgs.length > 1,
                         terminalCols: this.terminalCols,
+                        inPipe: inPipe
                     }
                 );
             }
@@ -58,12 +73,41 @@ export class CommandExecutor {
         return { stdin: '', stdout: stdout.trim(), stderr: stderr.trim() };
     }
 
-    #expandWildcards(positionalArgs) {
-        return positionalArgs.flatMap(arg => {
-            if (!/[*?[\]]/.test(arg)) return arg;
-            const matches = this.fileSystem.matchFiles(arg);
-            return matches.length > 0 ? matches : arg;
-        });
+    #expandWildcards(arg) {
+        if (!/[*?[\]]/.test(arg)) return arg;
+        const matches = this.fileSystem.matchFiles(arg);
+        return matches.length > 0 ? matches : arg;
+    }
+
+    #parseArgs(args, flags) {
+        const { positionalArgs, flagMap } = getFlags(args, flags);
+
+        // TODO: grep test $(ls) fails because \n is not considered whitespace by getFlags
+        const processArg = (str) => {
+            if (str.startsWith("'") && str.endsWith("'")) {
+                return str.slice(1, -1);
+            }
+            // $VAR
+            str = str.replace(/\$(\w+)/g, (match, varName) =>
+                this.#env[varName] ?? '');
+
+            // $(command) and `command`
+            str = str.replace(/\$\(([^)]+)\)|`([^`]+)`/g, (match, cmd1, cmd2) =>
+                this.executeCommand(cmd1 || cmd2, '', true).stdout.trim());
+
+            // Quotes and wildcards
+            if (str.startsWith('"') && str.endsWith('"')) {
+                const sliced = str.slice(1, -1);
+                return sliced ? this.#expandWildcards(sliced) : '';
+            } else {
+                const escaped = str.replace(/\\(?!\\)/g, '');
+                return escaped ? this.#expandWildcards(escaped) : '';
+            }
+        };
+        return {
+            positionalArgs: positionalArgs.flatMap(processArg),
+            flagMap: flagMap
+        };
     }
 
     #command(name, func, settings = {}) {
@@ -74,49 +118,73 @@ export class CommandExecutor {
             sortArgs = null
         } = settings;
 
-        return (stdin, args) => {
+        return (stdin, args, inPipe) => {
+            this.emit('command', name, stdin, args);
+            const workingColorize = this.colorize;
+            this.colorize = inPipe ? (text) => text : this.colorize;
+
             try {
-                // TODO: parseArgs removes single quotes but those are necessary for ignoring wildcards
-                const { positionalArgs, flagMap } = parseArgs(args, flags);
-                const expandedArgs = positionalArgs.length > 0
-                    ? this.#expandWildcards(positionalArgs)
-                    : positionalArgs;
+                const { positionalArgs, flagMap } = this.#parseArgs(args, flags);
 
                 if (callForEachArg) {
                     return this.#executeMultipleArgs(
                         name,
                         func,
                         stdin,
-                        expandedArgs,
+                        inPipe,
+                        positionalArgs,
                         flagMap,
                         destinationArgLocations,
                         sortArgs
                     );
                 }
 
-                return { stdin: '', stdout: func(stdin, expandedArgs, flagMap), stderr: '' };
+                return {
+                    stdin: '',
+                    stdout: func(
+                        stdin,
+                        positionalArgs,
+                        flagMap,
+                        {
+                            multipleArgsMode: false,
+                            terminalCols: this.terminalCols,
+                            inPipe: inPipe
+                        }
+                    ),
+                    stderr: ''
+                };
             } catch (error) {
                 return { stdin: '', stdout: '', stderr: `${name}: ${error.message}` };
+            } finally {
+                this.colorize = workingColorize;
             }
         };
     }
 
     #initializeCommands() {
-        const sysCommands = new SystemCommands(this.fileSystem, this.colorize).get();
-        const textCommands = new TextCommands(this.fileSystem, this.colorize).get();
-
-        for (const [name, [func, settings]] of Object.entries({ ...sysCommands, ...textCommands })) {
-            this.#commands[name] = this.#command(name, func, settings ?? {});
+        for (const [name, [func, settings]] of Object.entries({ ...SYSTEM_COMMANDS, ...TEXT_COMMANDS })) {
+            if (settings && settings.sortArgs) { settings.sortArgs = settings.sortArgs.bind(this); }
+            this.#commands[name] = this.#command(name, func.bind(this), settings ?? {});
         }
     }
 
-    set(name, callback) {
+    setCommand(name, callback) {
         this.#commands[name] = this.#command(name, callback);
     }
 
-    execute(commandName, stdin, args) {
-        const command = this.#commands[commandName];
-        if (!command) { return { stdin: '', stdout: '', stderr: `${commandName}: command not found` }; }
-        return command(stdin, args);
+    executeCommand(command, stdin = '', inPipe = false) {
+        // TODO: Worst regex I have ever seen
+        const [commandName, ...args] = command.match(/(?:(?<!\\)(?:["'])(?:(?:\\.)|[^\1])*?\1|`[^`]*`|\$\([^\)]*\)|[^\s"]+|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/g);
+        const commandFunc = this.#commands[commandName];
+        if (!commandFunc) { return { stdin: '', stdout: '', stderr: `${commandName}: command not found` }; }
+        return commandFunc(stdin, args, inPipe);
+    }
+
+    setEnv(key, value = '') {
+        this.#env[key] = value;
+    }
+
+    getEnv(key, value = '') {
+        this.#env[key] = value;
     }
 }
