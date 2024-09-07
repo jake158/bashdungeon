@@ -4,13 +4,15 @@ import { applyUmask, parseChmodString } from './file-system-utils.js';
 
 
 export class FileSystem {
+    #user;
     #homeDirectory;
     #currentDirectory;
     #previousDirectory;
     #umask;
 
     constructor() {
-        this.#homeDirectory = '/home/wizard';
+        this.#user = 'wizard';
+        this.#homeDirectory = `/home/${this.#user}`;
         this.#currentDirectory = `${this.#homeDirectory}/Dungeon`;
         this.#previousDirectory = this.#currentDirectory;
         this.#umask = '0002';
@@ -132,8 +134,8 @@ export class FileSystem {
     }
 
 
-    get umask() {
-        return this.#umask;
+    get user() {
+        return this.#user;
     }
 
     get homeDirectory() {
@@ -142,6 +144,10 @@ export class FileSystem {
 
     get currentDirectory() {
         return this.#currentDirectory;
+    }
+
+    get umask() {
+        return this.#umask;
     }
 
     set umask(value) {

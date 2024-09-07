@@ -5,6 +5,7 @@ import { TEXT_COMMANDS } from './text-commands.js';
 
 
 export class CommandExecutor extends EventEmitter {
+    #commandDefinitions;
     #commands;
     #env;
 
@@ -13,24 +14,29 @@ export class CommandExecutor extends EventEmitter {
         this.fileSystem = fileSystem;
         this.colorize = colorize;
         this.terminalCols = terminalCols;
+
         this.#env = {
             SHELL: '/bin/bash',
-            // TODO: Do not hardcode:
-            USER: 'wizard',
             LANGUAGE: 'en_US',
+            USER: fileSystem.user,
+            HOME: fileSystem.homeDirectory,
         };
-        this.#commands = {
-            // TODO: Implement
-            env: this.#command('env', (stdin, args) => {
-                return Object.entries(this.#env).map(([key, value]) => `${key}=${value}`).join('\n');
-            })
-        };
-        this.#initializeCommands();
+
+        this.#commandDefinitions = {
+            ...SYSTEM_COMMANDS,
+            ...TEXT_COMMANDS,
+
+            'env': [
+                function () {
+                    return Object.entries(this.#env).map(([key, value]) => `${key}=${value}`).join('\n');
+                }
+            ]
+        }
+        this.#commands = this.#initializeCommands(this.#commandDefinitions);
     }
 
     #popDestinationArg(positionalArgs, flagMap, destinationArgs) {
         let dest = null;
-
         for (let destArg of destinationArgs) {
             if (typeof destArg === 'string' && flagMap.has(destArg)) {
                 dest = flagMap.get(destArg);
@@ -46,8 +52,16 @@ export class CommandExecutor extends EventEmitter {
         return dest;
     }
 
-    #executeMultipleArgs(name, func, stdin, inPipe, positionalArgs, flagMap, destinationArgs, sortArgs) {
-        const dest = destinationArgs ? this.#popDestinationArg(positionalArgs, flagMap, destinationArgs) : null;
+    #executeMultipleArgs(name, func, stdin, inPipe, positionalArgs, flagMap, settings) {
+        const {
+            destinationArgLocations = null,
+            sortArgs = null
+        } = settings;
+
+        const dest = destinationArgLocations
+            ? this.#popDestinationArg(positionalArgs, flagMap, destinationArgLocations)
+            : null;
+
         if (sortArgs) { positionalArgs.sort(sortArgs); }
         if (positionalArgs.length === 0) { positionalArgs.push(null); }
 
@@ -57,7 +71,7 @@ export class CommandExecutor extends EventEmitter {
             try {
                 stdout += func(
                     stdin,
-                    destinationArgs ? [arg, dest] : arg,
+                    destinationArgLocations ? [arg, dest] : arg,
                     flagMap,
                     {
                         multipleArgsMode: positionalArgs.length > 1,
@@ -73,14 +87,14 @@ export class CommandExecutor extends EventEmitter {
         return { stdin: '', stdout: stdout.trim(), stderr: stderr.trim() };
     }
 
-    #expandWildcards(arg) {
-        if (!/[*?[\]]/.test(arg)) return arg;
-        const matches = this.fileSystem.matchFiles(arg);
-        return matches.length > 0 ? matches : arg;
-    }
-
     #parseArgs(args, flags) {
         const { positionalArgs, flagMap } = getFlags(args, flags);
+
+        const expandWildcards = (arg) => {
+            if (!/[*?[\]]/.test(arg)) return arg;
+            const matches = this.fileSystem.matchFiles(arg);
+            return matches.length > 0 ? matches : arg;
+        };
 
         // TODO: grep test $(ls) fails because \n is not considered whitespace by getFlags
         const processArg = (str) => {
@@ -97,11 +111,11 @@ export class CommandExecutor extends EventEmitter {
 
             // Quotes and wildcards
             if (str.startsWith('"') && str.endsWith('"')) {
-                const sliced = str.slice(1, -1);
-                return sliced ? this.#expandWildcards(sliced) : '';
+                const unquoted = str.slice(1, -1);
+                return unquoted ? expandWildcards(unquoted) : '';
             } else {
                 const escaped = str.replace(/\\(?!\\)/g, '');
-                return escaped ? this.#expandWildcards(escaped) : '';
+                return escaped ? expandWildcards(escaped) : '';
             }
         };
         return {
@@ -114,8 +128,6 @@ export class CommandExecutor extends EventEmitter {
         const {
             flags = {},
             callForEachArg = false,
-            destinationArgLocations = null,
-            sortArgs = null
         } = settings;
 
         return (stdin, args, inPipe) => {
@@ -134,25 +146,24 @@ export class CommandExecutor extends EventEmitter {
                         inPipe,
                         positionalArgs,
                         flagMap,
-                        destinationArgLocations,
-                        sortArgs
+                        settings
                     );
+                } else {
+                    return {
+                        stdin: '',
+                        stdout: func(
+                            stdin,
+                            positionalArgs,
+                            flagMap,
+                            {
+                                multipleArgsMode: false,
+                                terminalCols: this.terminalCols,
+                                inPipe: inPipe
+                            }
+                        ),
+                        stderr: ''
+                    };
                 }
-
-                return {
-                    stdin: '',
-                    stdout: func(
-                        stdin,
-                        positionalArgs,
-                        flagMap,
-                        {
-                            multipleArgsMode: false,
-                            terminalCols: this.terminalCols,
-                            inPipe: inPipe
-                        }
-                    ),
-                    stderr: ''
-                };
             } catch (error) {
                 return { stdin: '', stdout: '', stderr: `${name}: ${error.message}` };
             } finally {
@@ -161,11 +172,13 @@ export class CommandExecutor extends EventEmitter {
         };
     }
 
-    #initializeCommands() {
-        for (const [name, [func, settings]] of Object.entries({ ...SYSTEM_COMMANDS, ...TEXT_COMMANDS })) {
+    #initializeCommands(definitions) {
+        const commands = {};
+        for (const [name, [func, settings]] of Object.entries(definitions)) {
             if (settings && settings.sortArgs) { settings.sortArgs = settings.sortArgs.bind(this); }
-            this.#commands[name] = this.#command(name, func.bind(this), settings ?? {});
+            commands[name] = this.#command(name, func.bind(this), settings ?? {});
         }
+        return commands;
     }
 
     setCommand(name, callback) {
