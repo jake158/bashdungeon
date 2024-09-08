@@ -216,7 +216,7 @@ export const SYSTEM_COMMANDS = {
             if (!info.multipleArgsMode) {
                 return output;
             }
-            return this.fileSystem.isDirectory(arg)
+            return !options.dir && this.fileSystem.isDirectory(arg)
                 ? `\n${arg.replace('~', this.fileSystem.homeDirectory)}:\n${output}\n`
                 : `${output}\n`;
         },

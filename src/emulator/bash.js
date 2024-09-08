@@ -117,7 +117,7 @@ export class BashEmulator extends EventEmitter {
     }
 
     getPrompt(colorized = true) {
-        const userAtHost = 'wizard@dungeon';
+        const userAtHost = this.#fileSystem.user + '@dungeon';
         const displayDirectory = this.#fileSystem.currentDirectory.replace(this.#fileSystem.homeDirectory, '~');
         return colorized
             ? `${this.colorize(userAtHost, 'bold', 'green')}:${this.colorize(displayDirectory, 'bold', 'blue')}$ `

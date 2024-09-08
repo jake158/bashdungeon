@@ -52,7 +52,7 @@ export class CommandExecutor extends EventEmitter {
         return dest;
     }
 
-    #executeMultipleArgs(name, func, stdin, inPipe, positionalArgs, flagMap, settings) {
+    #executeMultipleArgs(name, func, stdin, inPipe, positionalArgs, flagMap, nestedCommandErrors, settings) {
         const {
             destinationArgLocations = null,
             sortArgs = null
@@ -66,7 +66,7 @@ export class CommandExecutor extends EventEmitter {
         if (positionalArgs.length === 0) { positionalArgs.push(null); }
 
         let stdout = '';
-        let stderr = '';
+        let stderr = nestedCommandErrors || '';
         for (let arg of positionalArgs) {
             try {
                 stdout += func(
@@ -81,7 +81,7 @@ export class CommandExecutor extends EventEmitter {
                 );
             }
             catch (error) {
-                stderr += `${name}: ${error.message}\n`;
+                stderr += `\n${name}: ${error.message}`;
             }
         }
         return { stdin: '', stdout: stdout.trim(), stderr: stderr.trim() };
@@ -91,36 +91,58 @@ export class CommandExecutor extends EventEmitter {
         const { positionalArgs, flagMap } = getFlags(args, flags);
 
         const expandWildcards = (arg) => {
-            if (!/[*?[\]]/.test(arg)) return arg;
+            if (!/[*?[\]]/.test(arg)) return [arg];
             const matches = this.fileSystem.matchFiles(arg);
-            return matches.length > 0 ? matches : arg;
+            return matches.length > 0 ? matches : [arg];
         };
 
-        // TODO: grep test $(ls) fails because \n is not considered whitespace by getFlags
-        const processArg = (str) => {
+        const queue = [...positionalArgs];
+        const processedArgs = [];
+        let errors = '';
+
+        while (queue.length > 0) {
+            let str = queue.shift();
+
             if (str.startsWith("'") && str.endsWith("'")) {
-                return str.slice(1, -1);
+                processedArgs.push(str.slice(1, -1));
+                continue;
             }
-            // $VAR
+
+            // Handle variable substitution: $VAR
             str = str.replace(/\$(\w+)/g, (match, varName) =>
-                this.#env[varName] ?? '');
+                this.#env[varName] ?? ''
+            );
 
-            // $(command) and `command`
-            str = str.replace(/\$\(([^)]+)\)|`([^`]+)`/g, (match, cmd1, cmd2) =>
-                this.executeCommand(cmd1 || cmd2, '', true).stdout.trim());
+            // Handle command substitution: $(command) and `command`
+            const commandSubsRegex = /\$\(([^)]+)\)|`([^`]+)`/g;
+            let commandSubsMatch;
+            while ((commandSubsMatch = commandSubsRegex.exec(str)) !== null) {
+                const [fullMatch, cmd1, cmd2] = commandSubsMatch;
+                const result = this.executeCommand(cmd1 || cmd2, '', true);
+                errors += result.stderr;
 
-            // Quotes and wildcards
+                const splitArgs = this.splitIntoArgs(result.stdout);
+                queue.unshift(...splitArgs);
+                str = str.replace(fullMatch, '');
+            }
+
+            // Handle quotes and wildcards
             if (str.startsWith('"') && str.endsWith('"')) {
                 const unquoted = str.slice(1, -1);
-                return unquoted ? expandWildcards(unquoted) : '';
+                if (unquoted) {
+                    processedArgs.push(...expandWildcards(unquoted));
+                }
             } else {
                 const escaped = str.replace(/\\(?!\\)/g, '');
-                return escaped ? expandWildcards(escaped) : '';
+                if (escaped) {
+                    processedArgs.push(...expandWildcards(escaped));
+                }
             }
-        };
+        }
         return {
-            positionalArgs: positionalArgs.flatMap(processArg),
-            flagMap: flagMap
+            positionalArgs: processedArgs,
+            flagMap: flagMap,
+            nestedCommandErrors: errors,
         };
     }
 
@@ -136,7 +158,7 @@ export class CommandExecutor extends EventEmitter {
             this.colorize = inPipe ? (text) => text : this.colorize;
 
             try {
-                const { positionalArgs, flagMap } = this.#parseArgs(args, flags);
+                const { positionalArgs, flagMap, nestedCommandErrors } = this.#parseArgs(args, flags);
 
                 if (callForEachArg) {
                     return this.#executeMultipleArgs(
@@ -146,6 +168,7 @@ export class CommandExecutor extends EventEmitter {
                         inPipe,
                         positionalArgs,
                         flagMap,
+                        nestedCommandErrors,
                         settings
                     );
                 } else {
@@ -161,11 +184,11 @@ export class CommandExecutor extends EventEmitter {
                                 inPipe: inPipe
                             }
                         ),
-                        stderr: ''
+                        stderr: nestedCommandErrors,
                     };
                 }
             } catch (error) {
-                return { stdin: '', stdout: '', stderr: `${name}: ${error.message}` };
+                return { stdin: '', stdout: '', stderr: `${name}: ${error.message}\n${nestedCommandErrors}`.trim() };
             } finally {
                 this.colorize = workingColorize;
             }
@@ -181,15 +204,35 @@ export class CommandExecutor extends EventEmitter {
         return commands;
     }
 
+    splitIntoArgs(string) {
+        // Regex to handle:
+        // - Command substitution: $(...)
+        // - Backtick substitution: `...`
+        // - Double-quoted strings: "..."
+        // - Single-quoted strings: '...'
+        // - Unquoted words
+        const regex = /("([^"\\]*(\\.[^"\\]*)*)"|'([^'\\]*(\\.[^'\\]*)*)'|\$\(([^()]*|\((?:[^()]|\([^()]*\))*\))*\)|`[^`]*`|[^\s]+)/g;
+
+        const matches = [];
+        let match;
+        while ((match = regex.exec(string)) !== null) {
+            matches.push(match[0]);
+        }
+        return matches;
+    }
+
     setCommand(name, callback) {
         this.#commands[name] = this.#command(name, callback);
     }
 
     executeCommand(command, stdin = '', inPipe = false) {
-        // TODO: Worst regex I have ever seen
-        const [commandName, ...args] = command.match(/(?:(?<!\\)(?:["'])(?:(?:\\.)|[^\1])*?\1|`[^`]*`|\$\([^\)]*\)|[^\s"]+|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/g);
+        const [commandName, ...incorrectlySplitArgs] = command.trim().split(/\s+(.*)/s);
         const commandFunc = this.#commands[commandName];
-        if (!commandFunc) { return { stdin: '', stdout: '', stderr: `${commandName}: command not found` }; }
+
+        if (!commandFunc) {
+            return { stdin: '', stdout: '', stderr: `${commandName}: command not found` };
+        }
+        const args = this.splitIntoArgs(incorrectlySplitArgs.join(' '));
         return commandFunc(stdin, args, inPipe);
     }
 
