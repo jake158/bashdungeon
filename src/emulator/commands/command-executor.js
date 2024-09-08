@@ -84,7 +84,10 @@ export class CommandExecutor extends EventEmitter {
                 stderr += `\n${name}: ${error.message}`;
             }
         }
-        return { stdin: '', stdout: stdout.trim(), stderr: stderr.trim() };
+        const trimNewlinesOnly = (str) => {
+            return str.replace(/^\s*[\r\n]+|[\r\n]+\s*$/g, '');
+        }
+        return { stdin: '', stdout: trimNewlinesOnly(stdout), stderr: stderr.trim() };
     }
 
     #parseArgs(args, flags) {
@@ -109,9 +112,7 @@ export class CommandExecutor extends EventEmitter {
             }
 
             // Handle variable substitution: $VAR
-            str = str.replace(/\$(\w+)/g, (match, varName) =>
-                this.#env[varName] ?? ''
-            );
+            str = str.replace(/\$(\w+)/g, (_, varName) => this.getEnv(varName));
 
             // Handle command substitution: $(command) and `command`
             const commandSubsRegex = /\$\(([^)]+)\)|`([^`]+)`/g;
@@ -188,7 +189,7 @@ export class CommandExecutor extends EventEmitter {
                     };
                 }
             } catch (error) {
-                return { stdin: '', stdout: '', stderr: `${name}: ${error.message}\n${nestedCommandErrors}`.trim() };
+                return { stdin: '', stdout: '', stderr: `${name}: ${error.message}` };
             } finally {
                 this.colorize = workingColorize;
             }
@@ -202,6 +203,22 @@ export class CommandExecutor extends EventEmitter {
             commands[name] = this.#command(name, func.bind(this), settings ?? {});
         }
         return commands;
+    }
+
+
+    #handleVariableAssignment(command) {
+        const match = command[0].match(/^(\w+)=(.*)$/);
+        if (!match) {
+            return null;
+        }
+        const [, varName, varValue] = match;
+        const varValueArgs = [...this.splitIntoArgs(varValue), ...command.splice(1)];
+        const value = varValueArgs[0] ?? '';
+        this.setEnv(varName, value.replace(/['"]/g, ''));
+
+        return varValueArgs.length === 1
+            ? { stdin: '', stdout: '', stderr: '' }
+            : this.executeCommand(varValueArgs.splice(1).join(' '));
     }
 
     splitIntoArgs(string) {
@@ -221,26 +238,33 @@ export class CommandExecutor extends EventEmitter {
         return matches;
     }
 
+    executeCommand(commandString, stdin = '', inPipe = false) {
+        const command = this.splitIntoArgs(commandString);
+        if (command.length === 0) {
+            return { stdin: '', stdout: '', stderr: '' };
+        }
+        const commandName = command[0]
+            .replace(/['"]/g, '')
+            .replace(/\$(\w+)/g, (match, varName) => command[0].startsWith("'") && command[0].endsWith("'") ? match : this.getEnv(varName));
+        const commandFunc = this.#commands[commandName];
+
+        if (!commandFunc) {
+            return this.#handleVariableAssignment(command)
+                ?? { stdin: '', stdout: '', stderr: `${commandName}: command not found` };
+        }
+        const args = command.splice(1);
+        return commandFunc(stdin, args, inPipe);
+    }
+
     setCommand(name, callback) {
         this.#commands[name] = this.#command(name, callback);
     }
 
-    executeCommand(command, stdin = '', inPipe = false) {
-        const [commandName, ...incorrectlySplitArgs] = command.trim().split(/\s+(.*)/s);
-        const commandFunc = this.#commands[commandName];
-
-        if (!commandFunc) {
-            return { stdin: '', stdout: '', stderr: `${commandName}: command not found` };
-        }
-        const args = this.splitIntoArgs(incorrectlySplitArgs.join(' '));
-        return commandFunc(stdin, args, inPipe);
+    getEnv(key) {
+        return this.#env[key] ?? '';
     }
 
     setEnv(key, value = '') {
-        this.#env[key] = value;
-    }
-
-    getEnv(key, value = '') {
         this.#env[key] = value;
     }
 }
