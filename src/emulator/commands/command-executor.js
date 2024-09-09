@@ -2,7 +2,7 @@ import { EventEmitter } from '../event-emitter.js';
 import { getFlags } from './get-flags.js';
 import { SYSTEM_COMMANDS } from './system-commands.js';
 import { TEXT_COMMANDS } from './text-commands.js';
-import { Man } from './man.js';
+import { Man } from './man/man.js';
 
 
 export class CommandExecutor extends EventEmitter {
@@ -33,14 +33,31 @@ export class CommandExecutor extends EventEmitter {
                 return Object.entries(this.#env).map(([key, value]) => `${key}=${value}`).join('\n');
             }
         ];
+
         this.#commandDefinitions['man'] = [
             function (stdin, arg) {
-                return this.#man.getEntry(arg);
+                if (!arg) return "What manual page do you want?\nFor example, try 'man cd'";
+                return this.#man.getManEntry(arg);
             },
             {
                 callForEachArg: true,
             }
         ];
+
+        this.#commandDefinitions['help'] = [
+            function () {
+                return Object.keys(this.#commandDefinitions).map(c => {
+                    try {
+                        return this.#man.getHelpEntry(c);
+                    } catch {
+                        return null
+                    }
+                })
+                    .filter(h => h !== null)
+                    .join('\n')
+                    .trimEnd();
+            }
+        ]
 
         this.#man = new Man(this.#commandDefinitions, colorize);
         this.#commands = this.#initializeCommands(this.#commandDefinitions);
