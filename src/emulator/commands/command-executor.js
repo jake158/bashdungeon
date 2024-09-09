@@ -2,12 +2,14 @@ import { EventEmitter } from '../event-emitter.js';
 import { getFlags } from './get-flags.js';
 import { SYSTEM_COMMANDS } from './system-commands.js';
 import { TEXT_COMMANDS } from './text-commands.js';
+import { Man } from './man.js';
 
 
 export class CommandExecutor extends EventEmitter {
     #commandDefinitions;
     #commands;
     #env;
+    #man;
 
     constructor(fileSystem, colorize = (text) => text, terminalCols = null) {
         super();
@@ -21,17 +23,26 @@ export class CommandExecutor extends EventEmitter {
             USER: fileSystem.user,
             HOME: fileSystem.homeDirectory,
         };
-
         this.#commandDefinitions = {
             ...SYSTEM_COMMANDS,
             ...TEXT_COMMANDS,
-
-            'env': [
-                function () {
-                    return Object.entries(this.#env).map(([key, value]) => `${key}=${value}`).join('\n');
-                }
-            ]
         }
+
+        this.#commandDefinitions['env'] = [
+            function () {
+                return Object.entries(this.#env).map(([key, value]) => `${key}=${value}`).join('\n');
+            }
+        ];
+        this.#commandDefinitions['man'] = [
+            function (stdin, arg) {
+                return this.#man.getEntry(arg);
+            },
+            {
+                callForEachArg: true,
+            }
+        ];
+
+        this.#man = new Man(this.#commandDefinitions, colorize);
         this.#commands = this.#initializeCommands(this.#commandDefinitions);
     }
 
