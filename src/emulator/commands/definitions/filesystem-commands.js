@@ -73,7 +73,7 @@ function formatLsLong(items, now) {
 }
 
 
-export const SYSTEM_COMMANDS = {
+export const FILESYSTEM_COMMANDS = {
     'pwd': [
         function () { return this.fileSystem.currentDirectory; },
     ],

@@ -1,15 +1,13 @@
 import { EventEmitter } from '../event-emitter.js';
 import { getFlags } from './get-flags.js';
-import { SYSTEM_COMMANDS } from './system-commands.js';
-import { TEXT_COMMANDS } from './text-commands.js';
+import { FILESYSTEM_COMMANDS } from './definitions/filesystem-commands.js';
+import { TEXT_COMMANDS } from './definitions/text-commands.js';
+import { OTHER_COMMANDS } from './definitions/other-commands.js';
 import { Man } from './man/man.js';
 
 
 export class CommandExecutor extends EventEmitter {
-    #commandDefinitions;
     #commands;
-    #env;
-    #man;
 
     constructor(fileSystem, colorize = (text) => text, terminalCols = null) {
         super();
@@ -17,50 +15,20 @@ export class CommandExecutor extends EventEmitter {
         this.colorize = colorize;
         this.terminalCols = terminalCols;
 
-        this.#env = {
+        this.env = {
             SHELL: '/bin/bash',
             LANGUAGE: 'en_US',
             USER: fileSystem.user,
             HOME: fileSystem.homeDirectory,
         };
-        this.#commandDefinitions = {
-            ...SYSTEM_COMMANDS,
+        this.commandDefinitions = {
+            ...FILESYSTEM_COMMANDS,
             ...TEXT_COMMANDS,
+            ...OTHER_COMMANDS,
         }
 
-        this.#commandDefinitions['env'] = [
-            function () {
-                return Object.entries(this.#env).map(([key, value]) => `${key}=${value}`).join('\n');
-            }
-        ];
-
-        this.#commandDefinitions['man'] = [
-            function (stdin, arg) {
-                if (!arg) return "What manual page do you want?\nFor example, try 'man cd'";
-                return this.#man.getManEntry(arg);
-            },
-            {
-                callForEachArg: true,
-            }
-        ];
-
-        this.#commandDefinitions['help'] = [
-            function () {
-                return Object.keys(this.#commandDefinitions).map(c => {
-                    try {
-                        return this.#man.getHelpEntry(c);
-                    } catch {
-                        return null
-                    }
-                })
-                    .filter(h => h !== null)
-                    .join('\n')
-                    .trimEnd();
-            }
-        ]
-
-        this.#man = new Man(this.#commandDefinitions, colorize);
-        this.#commands = this.#initializeCommands(this.#commandDefinitions);
+        this.man = new Man(this.commandDefinitions, colorize);
+        this.#commands = this.#initializeCommands(this.commandDefinitions);
     }
 
     #popDestinationArg(positionalArgs, flagMap, destinationArgs) {
@@ -140,7 +108,7 @@ export class CommandExecutor extends EventEmitter {
             }
 
             // Handle variable substitution: $VAR
-            str = str.replace(/\$(\w+)/g, (_, varName) => this.getEnv(varName));
+            str = str.replace(/\$(\w+)/g, (_, varName) => this.env[varName] ?? '');
 
             // Handle command substitution: $(command) and `command`
             const commandSubsRegex = /\$\(([^)]+)\)|`([^`]+)`/g;
@@ -242,7 +210,7 @@ export class CommandExecutor extends EventEmitter {
         const [, varName, varValue] = match;
         const varValueArgs = [...this.splitIntoArgs(varValue), ...command.splice(1)];
         const value = varValueArgs[0] ?? '';
-        this.setEnv(varName, value.replace(/['"]/g, ''));
+        this.env[varName] = value.replace(/['"]/g, '');
 
         return varValueArgs.length === 1
             ? { stdin: '', stdout: '', stderr: '' }
@@ -273,7 +241,7 @@ export class CommandExecutor extends EventEmitter {
         }
         const commandName = command[0]
             .replace(/['"]/g, '')
-            .replace(/\$(\w+)/g, (match, varName) => command[0].startsWith("'") && command[0].endsWith("'") ? match : this.getEnv(varName));
+            .replace(/\$(\w+)/g, (match, varName) => command[0].startsWith("'") && command[0].endsWith("'") ? match : this.env[varName] ?? '');
         const commandFunc = this.#commands[commandName];
 
         if (!commandFunc) {
@@ -286,13 +254,5 @@ export class CommandExecutor extends EventEmitter {
 
     setCommand(name, callback) {
         this.#commands[name] = this.#command(name, callback);
-    }
-
-    getEnv(key) {
-        return this.#env[key] ?? '';
-    }
-
-    setEnv(key, value = '') {
-        this.#env[key] = value;
     }
 }
