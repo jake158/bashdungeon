@@ -38,18 +38,38 @@ export class BashEmulator extends EventEmitter {
         }
     }
 
-    async #parseAndExecute(input) {
+    async #handleCommandSubstitution(input) {
+        // TODO: This regex does not support nested command substitution
+        // E.g. $(ls $(pwd)) => $(ls $(pwd)
+        const commandSubsRegex = /\$\(([^)]+)\)|`([^`]+)`/g;
+        let errors = [];
+        let match;
+
+        while ((match = commandSubsRegex.exec(input)) !== null) {
+            const fullMatch = match[0];
+            const innerCommand = match[1] || match[2];
+            const result = await this.#parseAndExecute(innerCommand, true);
+            input = input.replace(fullMatch, result.stdout.join(' '));
+            errors = [...errors, ...result.stderr];
+        }
+        return { expandedInput: input, errorsDuringSubstitution: errors };
+    }
+
+    async #parseAndExecute(input, allInPipe = false) {
+        const { expandedInput, errorsDuringSubstitution } = await this.#handleCommandSubstitution(input);
+
         const regex = /\|\||\||&&|&>|&|;|<>|<|2>>|2>|>>/g;
-        const commands = input.split(regex).map(cmd => cmd.trim()).filter(cmd => cmd !== '');
-        const operators = input.match(regex) || [];
+        const commands = expandedInput.split(regex).map(cmd => cmd.trim()).filter(Boolean);
+        const operators = expandedInput.match(regex) || [];
         operators.unshift(';');
 
         let result = { stdin: '', stdout: '', stderr: '' };
-        const outputStream = [];
+        const stdout = [];
+        const stderr = errorsDuringSubstitution;
 
         pipeline:
         for (let i = 0; i < commands.length; i++) {
-            const inPipe = i !== commands.length - 1;
+            const inPipe = allInPipe || i !== commands.length - 1;
             switch (operators[i]) {
                 case ';':
                     result = await this.#commandExecutor.executeCommand(commands[i], '', inPipe);
@@ -63,25 +83,25 @@ export class BashEmulator extends EventEmitter {
                     result = await this.#commandExecutor.executeCommand(commands[i], '', inPipe);
                     break;
                 case '|':
-                    outputStream.pop();
+                    stdout.pop();
                     result = await this.#commandExecutor.executeCommand(commands[i], result.stdout, inPipe);
                     break;
                 case '2>':
-                    outputStream.pop();
+                    stderr.pop();
                     result = await this.#commandExecutor.executeCommand(commands[i], result.stderr, inPipe);
                     break;
                 default:
                     outputStream.push(`${operators[i]}: operator not implemented`);
                     break pipeline;
             }
-            if (result.stderr) {
-                outputStream.push(result.stderr);
-            }
-            if (result.stdout) {
-                outputStream.push(result.stdout);
-            }
+            stderr.push(result.stderr);
+            stdout.push(result.stdout);
         }
-        return outputStream;
+        return {
+            stderr: stderr.filter(Boolean),
+            stdout: stdout.filter(Boolean),
+            outputStream: [...stderr, ...stdout].filter(Boolean)
+        };
     }
 
     async execute(input) {
@@ -89,7 +109,7 @@ export class BashEmulator extends EventEmitter {
             return '';
         }
         this.#pushToHistory(input);
-        const outputStream = await this.#parseAndExecute(input);
+        const { outputStream } = await this.#parseAndExecute(input);
         return outputStream.join('\n');
     }
 

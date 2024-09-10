@@ -48,7 +48,7 @@ export class CommandExecutor extends EventEmitter {
         return dest;
     }
 
-    #executeMultipleArgs(name, func, stdin, inPipe, positionalArgs, flagMap, nestedCommandErrors, settings) {
+    #executeMultipleArgs(name, func, stdin, inPipe, positionalArgs, flagMap, settings) {
         const {
             destinationArgLocations = null,
             sortArgs = null
@@ -62,7 +62,7 @@ export class CommandExecutor extends EventEmitter {
         if (positionalArgs.length === 0) { positionalArgs.push(null); }
 
         let stdout = '';
-        let stderr = nestedCommandErrors || '';
+        let stderr = '';
         for (let arg of positionalArgs) {
             try {
                 stdout += func(
@@ -95,51 +95,24 @@ export class CommandExecutor extends EventEmitter {
             return matches.length > 0 ? matches : [arg];
         };
 
-        const queue = [...positionalArgs];
-        const processedArgs = [];
-        let errors = '';
-
-        while (queue.length > 0) {
-            let str = queue.shift();
-
+        const processArg = (str) => {
             if (str.startsWith("'") && str.endsWith("'")) {
-                processedArgs.push(str.slice(1, -1));
-                continue;
+                return str.slice(1, -1);
             }
-
-            // Handle variable substitution: $VAR
+            // $VAR substitution
             str = str.replace(/\$(\w+)/g, (_, varName) => this.env[varName] ?? '');
 
-            // Handle command substitution: $(command) and `command`
-            const commandSubsRegex = /\$\(([^)]+)\)|`([^`]+)`/g;
-            let commandSubsMatch;
-            while ((commandSubsMatch = commandSubsRegex.exec(str)) !== null) {
-                const [fullMatch, cmd1, cmd2] = commandSubsMatch;
-                const result = this.executeCommand(cmd1 || cmd2, '', true);
-                errors += result.stderr;
-
-                const splitArgs = this.splitIntoArgs(result.stdout);
-                queue.unshift(...splitArgs);
-                str = str.replace(fullMatch, '');
-            }
-
-            // Handle quotes and wildcards
             if (str.startsWith('"') && str.endsWith('"')) {
                 const unquoted = str.slice(1, -1);
-                if (unquoted) {
-                    processedArgs.push(...expandWildcards(unquoted));
-                }
+                return unquoted ? expandWildcards(unquoted) : [];
             } else {
                 const escaped = str.replace(/\\(?!\\)/g, '');
-                if (escaped) {
-                    processedArgs.push(...expandWildcards(escaped));
-                }
+                return escaped ? expandWildcards(escaped) : [];
             }
-        }
+        };
         return {
-            positionalArgs: processedArgs,
+            positionalArgs: positionalArgs.flatMap(processArg),
             flagMap: flagMap,
-            nestedCommandErrors: errors,
         };
     }
 
@@ -155,7 +128,7 @@ export class CommandExecutor extends EventEmitter {
             this.colorize = inPipe ? (text) => text : this.colorize;
 
             try {
-                const { positionalArgs, flagMap, nestedCommandErrors } = this.#parseArgs(args, flags);
+                const { positionalArgs, flagMap } = this.#parseArgs(args, flags);
 
                 if (callForEachArg) {
                     return this.#executeMultipleArgs(
@@ -165,7 +138,6 @@ export class CommandExecutor extends EventEmitter {
                         inPipe,
                         positionalArgs,
                         flagMap,
-                        nestedCommandErrors,
                         settings
                     );
                 } else {
@@ -181,7 +153,7 @@ export class CommandExecutor extends EventEmitter {
                                 inPipe: inPipe
                             }
                         ),
-                        stderr: nestedCommandErrors,
+                        stderr: '',
                     };
                 }
             } catch (error) {
@@ -212,19 +184,18 @@ export class CommandExecutor extends EventEmitter {
         const value = varValueArgs[0] ?? '';
         this.env[varName] = value.replace(/['"]/g, '');
 
-        return varValueArgs.length === 1
-            ? { stdin: '', stdout: '', stderr: '' }
-            : this.executeCommand(varValueArgs.splice(1).join(' '));
+        return varValueArgs.length > 1
+            ? this.executeCommand(varValueArgs.splice(1).join(' '))
+            : { stdin: '', stdout: '', stderr: '' };
     }
 
     splitIntoArgs(string) {
         // Regex to handle:
-        // - Command substitution: $(...)
-        // - Backtick substitution: `...`
         // - Double-quoted strings: "..."
         // - Single-quoted strings: '...'
         // - Unquoted words
-        const regex = /("([^"\\]*(\\.[^"\\]*)*)"|'([^'\\]*(\\.[^'\\]*)*)'|\$\(([^()]*|\((?:[^()]|\([^()]*\))*\))*\)|`[^`]*`|[^\s]+)/g;
+        // TODO: when escaping special characters, does not remove backslash
+        const regex = /("([^"\\]*(\\.[^"\\]*)*)"|'([^'\\]*(\\.[^'\\]*)*)'|[^\s]+)/g;
 
         const matches = [];
         let match;
