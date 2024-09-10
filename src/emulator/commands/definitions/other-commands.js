@@ -31,4 +31,38 @@ export const OTHER_COMMANDS = {
                 .trimEnd();
         }
     ],
+
+    'base64': [
+        function (stdin, args, flagMap) {
+            if (args.length > 1) { throw new Error(`extra operand ${args[1]}`); }
+            const decode = flagMap.has('-d') || flagMap.has('--decode');
+
+            const base64Encode = (input) => {
+                return btoa(input);
+            };
+            const base64Decode = (input) => {
+                try {
+                    return atob(input);
+                } catch (error) {
+                    throw new Error('invalid input');
+                }
+            };
+            const inputContent = args[0] && args[0] !== '-'
+                ? this.fileSystem.getFileContent(args[0])
+                : stdin;
+
+            if (!inputContent) {
+                throw new Error('no input provided');
+            }
+            const output = decode ? base64Decode(inputContent.trim()) : base64Encode(inputContent);
+            return output;
+        },
+
+        {
+            flags: {
+                '-d': 'regular',
+                '--decode': 'regular'
+            },
+        }
+    ]
 }

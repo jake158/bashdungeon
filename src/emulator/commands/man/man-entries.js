@@ -114,6 +114,18 @@ unless -c is supplied.`,
         }
     },
 
+    "base64": {
+        "SUMMARY": "base64 encode/decode data and print to standard output",
+        "SYNOPSIS": "[OPTION]... [FILE]",
+        "DESCRIPTION": `Base64 encode or decode FILE, or standard input, to standard output.
+
+With no FILE, or when FILE is -, read standard input.`,
+        "OPTIONS": {
+            "-d": "decode data",
+            "--decode": "same as -d"
+        }
+    },
+
     "echo": {
         "SUMMARY": "display a line of text",
         "SYNOPSIS": "[SHORT-OPTION]... [STRING]...",
