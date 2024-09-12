@@ -91,7 +91,7 @@ export class CommandExecutor extends EventEmitter {
 
         const expandWildcards = (arg) => {
             if (!/[*?[\]]/.test(arg)) return [arg];
-            const matches = this.fileSystem.matchFiles(arg);
+            const matches = this.fileSystem.getWildcardMatches(arg);
             return matches.length > 0 ? matches : [arg];
         };
 
@@ -189,6 +189,10 @@ export class CommandExecutor extends EventEmitter {
             : { stdin: '', stdout: '', stderr: '' };
     }
 
+    getCommandsStartingWith(string) {
+        return Object.keys(this.commandDefinitions).filter(c => c.startsWith(string));
+    }
+
     splitIntoArgs(string) {
         // Regex to handle:
         // - Double-quoted strings: "..."
@@ -225,5 +229,6 @@ export class CommandExecutor extends EventEmitter {
 
     setCommand(name, callback) {
         this.#commands[name] = this.#command(name, callback);
+        this.commandDefinitions[name] = [callback, {}];
     }
 }

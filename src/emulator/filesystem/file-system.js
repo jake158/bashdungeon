@@ -123,6 +123,8 @@ export class FileSystem {
     }
 
     #wildcardToRegex(pattern) {
+        // TODO: Ensure this does not crash on bad pattern
+
         // Escape regex special characters except for * and ?
         let escapedPattern = pattern.replace(/[.+^$(){}|\\]/g, '\\$&');
         // Handle the negation character set [!...] by converting it to a regex equivalent
@@ -157,7 +159,7 @@ export class FileSystem {
         this.#umask = value.padStart(4, '0');
     }
 
-    matchFiles(pattern) {
+    getWildcardMatches(pattern) {
         // TODO: Add { } handling
         const absolutePath = this.#evaluatePath(pattern);
         const sepIndex = absolutePath.lastIndexOf('/');
@@ -180,6 +182,12 @@ export class FileSystem {
             const b = itemB.toLowerCase();
             return (a < b) ? -1 : (a > b) ? 1 : 0;
         });
+    }
+
+    getFilesStartingWith(string) {
+        return this.#getItem(this.#currentDirectory).contents
+            .map(i => i.name)
+            .filter(i => i.startsWith(string));
     }
 
     isDirectory(path) {

@@ -38,6 +38,14 @@ export class BashEmulator extends EventEmitter {
         }
     }
 
+    #splitCommand(command) {
+        const regex = /\|\||\||&&|&>|&|;|<>|<|2>>|2>|>>/g;
+        return {
+            commands: command.split(regex).map(cmd => cmd.trim()),
+            operators: command.match(regex) || []
+        }
+    }
+
     async #handleCommandSubstitution(input) {
         // TODO: This regex does not support nested command substitution
         // E.g. $(ls $(pwd)) => $(ls $(pwd)
@@ -57,10 +65,7 @@ export class BashEmulator extends EventEmitter {
 
     async #parseAndExecute(input, allInPipe = false) {
         const { expandedInput, errorsDuringSubstitution } = await this.#handleCommandSubstitution(input);
-
-        const regex = /\|\||\||&&|&>|&|;|<>|<|2>>|2>|>>/g;
-        const commands = expandedInput.split(regex).map(cmd => cmd.trim()).filter(Boolean);
-        const operators = expandedInput.match(regex) || [];
+        const { commands, operators } = this.#splitCommand(expandedInput);
         operators.unshift(';');
 
         let result = { stdin: '', stdout: '', stderr: '' };
@@ -131,9 +136,41 @@ export class BashEmulator extends EventEmitter {
         }
     }
 
-    tabComplete(input) {
-        // TODO: Implement
-        return input;
+    getTabCompletions(input) {
+        // TODO: 
+        // Should tab completions complete duplicate arguments?
+        // Ensure it accounts for quotes
+        // Clean
+        const { commands } = this.#splitCommand(input);
+        const currentCommand = commands.pop();
+        if (!currentCommand) {
+            return {
+                completions: [],
+                completedCommand: input
+            }
+        }
+        const commandArgs = this.#commandExecutor.splitIntoArgs(currentCommand);
+        const endsWithSpace = input.endsWith(' ');
+        let completions = [];
+        let argToComplete = '';
+        let completedCommand = input;
+
+        if (commandArgs.length === 1 && !endsWithSpace) {
+            argToComplete = commandArgs.shift();
+            completions = this.#commandExecutor.getCommandsStartingWith(argToComplete);
+        } else {
+            argToComplete = endsWithSpace ? '' : commandArgs.pop();
+            completions = this.#fileSystem.getFilesStartingWith(argToComplete);
+        }
+
+        const n = input.lastIndexOf(argToComplete);
+        if (n !== -1 && completions.length === 1) {
+            completedCommand = input.substring(0, n) + completions[0];
+        }
+        return {
+            completions,
+            completedCommand
+        };
     }
 
     getPrompt(colorized = true) {

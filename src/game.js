@@ -135,9 +135,12 @@ export class Game {
                 break;
 
             case '\t':
-                const completion = bash.tabComplete(this.commandBuffer);
-                if (completion) {
-                    this.rewriteBuffer(completion);
+                // TODO: 
+                // Add completion with cursor position accounted for
+                // Add displaying available completions when completions.length > 1
+                const { completions, completedCommand } = bash.getTabCompletions(this.commandBuffer);
+                if (completions.length === 1) {
+                    this.rewriteBuffer(completedCommand);
                 }
                 break;
 
@@ -183,7 +186,7 @@ export class Game {
                     return;
                 }
                 // TODO: handle special characters on paste
-                e  = e.replace(/(\r\n|\n|\r)/gm, "");
+                e = e.replace(/(\r\n|\n|\r)/gm, "");
                 const newBuffer = this.commandBuffer.slice(0, this.cursorPos) + e + this.commandBuffer.slice(this.cursorPos);
                 this.rewriteBuffer(newBuffer, this.cursorPos + e.length);
         }
