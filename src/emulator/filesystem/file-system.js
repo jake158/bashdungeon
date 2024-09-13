@@ -186,7 +186,7 @@ export class FileSystem {
 
     getFilesStartingWith(string) {
         return this.#getItem(this.#currentDirectory).contents
-            .map(i => i.name)
+            .map(i => (i.type === 'file' ? i.name : i.name + '/'))
             .filter(i => i.startsWith(string));
     }
 

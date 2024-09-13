@@ -96,7 +96,7 @@ export class BashEmulator extends EventEmitter {
                     result = await this.#commandExecutor.executeCommand(commands[i], result.stderr, inPipe);
                     break;
                 default:
-                    outputStream.push(`${operators[i]}: operator not implemented`);
+                    stderr.push(`${operators[i]}: operator not implemented`);
                     break pipeline;
             }
             stderr.push(result.stderr);
@@ -137,29 +137,24 @@ export class BashEmulator extends EventEmitter {
     }
 
     getTabCompletions(input) {
-        // TODO: 
-        // Should tab completions complete duplicate arguments?
-        // Ensure it accounts for quotes
-        // Clean
+        // TODO: Add completion control for different commands
+        // E.g. man + tab should not give file completions
         const { commands } = this.#splitCommand(input);
-        const currentCommand = commands.pop();
-        if (!currentCommand) {
-            return {
-                completions: [],
-                completedCommand: input
-            }
-        }
+        const currentCommand = commands.pop() || '';
         const commandArgs = this.#commandExecutor.splitIntoArgs(currentCommand);
+
         const endsWithSpace = input.endsWith(' ');
-        let completions = [];
-        let argToComplete = '';
+        let argToComplete;
+        let completions;
         let completedCommand = input;
 
-        if (commandArgs.length === 1 && !endsWithSpace) {
-            argToComplete = commandArgs.shift();
+        if (commandArgs.length <= 1 && !(commandArgs.length === 1 && endsWithSpace)) {
+            argToComplete = commandArgs.shift() || '';
+            argToComplete = argToComplete.replace(/['"]+/g, '');
             completions = this.#commandExecutor.getCommandsStartingWith(argToComplete);
         } else {
             argToComplete = endsWithSpace ? '' : commandArgs.pop();
+            argToComplete = argToComplete.replace(/['"]+/g, '');
             completions = this.#fileSystem.getFilesStartingWith(argToComplete);
         }
 
@@ -169,7 +164,8 @@ export class BashEmulator extends EventEmitter {
         }
         return {
             completions,
-            completedCommand
+            completedCommand,
+            formattedCompletions: this.#commandExecutor.formatColumns(completions)
         };
     }
 

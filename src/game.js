@@ -19,9 +19,11 @@ export class Game {
         this.fitAddon.fit();
 
         this.bash = new BashEmulator(() => this.terminal.reset(), colorize, this.terminal.cols);
+
         this.commandBuffer = '';
         this.promptLen = this.bash.getPrompt(false).length;
         this.cursorPos = 0;
+        this.tabCounter = 0;
         this.#setupCopyPaste();
 
         window.addEventListener('resize', () => {
@@ -135,26 +137,35 @@ export class Game {
                 break;
 
             case '\t':
-                // TODO: 
-                // Add completion with cursor position accounted for
-                // Add displaying available completions when completions.length > 1
-                const { completions, completedCommand } = bash.getTabCompletions(this.commandBuffer);
-                if (completions.length === 1) {
-                    this.rewriteBuffer(completedCommand);
+                const beforeCursor = this.commandBuffer.slice(0, this.cursorPos);
+                const afterCursor = this.commandBuffer.slice(this.cursorPos);
+                const {
+                    completions,
+                    completedCommand,
+                    formattedCompletions
+                } = bash.getTabCompletions(beforeCursor);
+
+                if (completions.length === 0) {
+                    return;
+                } else if (completions.length === 1) {
+                    this.rewriteBuffer(completedCommand + afterCursor, completedCommand.length);
+                    this.tabCounter = 0;
+                    return;
+                } else if (this.tabCounter === 1) {
+                    terminal.write('\r\n' + formattedCompletions)
+                    terminal.write('\r\n' + bash.getPrompt() + this.commandBuffer);
+                    this.cursorPos = this.commandBuffer.length;
+                    this.tabCounter = 0;
+                    return;
                 }
+                this.tabCounter++;
                 break;
 
             case ansi.cursorUp:
-                const upCommand = bash.historyUp();
-                if (upCommand) {
-                    this.rewriteBuffer(upCommand);
-                }
-                break;
-
             case ansi.cursorDown:
-                const downCommand = bash.historyDown();
-                if (downCommand) {
-                    this.rewriteBuffer(downCommand)
+                const command = e === ansi.cursorUp ? bash.historyUp() : bash.historyDown();
+                if (command) {
+                    this.rewriteBuffer(command);
                 }
                 break;
 

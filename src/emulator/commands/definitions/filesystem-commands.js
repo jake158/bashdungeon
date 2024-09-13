@@ -1,7 +1,7 @@
 
 
-function formatLsShort(items, terminalCols, inPipe) {
-    if (items.length === 0 || terminalCols <= 0) {
+function formatLsShort(items, inPipe) {
+    if (items.length === 0) {
         return '';
     } else if (inPipe) {
         return items.map(i => i.type === 'directory'
@@ -9,29 +9,15 @@ function formatLsShort(items, terminalCols, inPipe) {
             : i.name
         ).join('\n');
     }
-    const maxItemWidth = items.reduce((maxWidth, i) => Math.max(maxWidth, i.name.length), 0);
-    const cols = Math.max(Math.floor(terminalCols / (maxItemWidth + 1)), 1);
-    const rows = Math.ceil(items.length / cols);
+    const stringsToDisplay = items.map(i => i.type === 'directory'
+        ? this.colorize(i.name, 'bold', 'blue')
+        : i.name
+    );
 
-    let output = '';
-
-    for (let row = 0; row < rows; row++) {
-        let line = '';
-        for (let col = 0; col < cols; col++) {
-            const index = col * rows + row;
-            if (index < items.length) {
-                const item = items[index];
-                const paddedItem = (item.type === 'directory'
-                    ? this.colorize(item.name, 'bold', 'blue')
-                    : item.name
-                ) + ' '.repeat(maxItemWidth - item.name.length + 1);
-                line += paddedItem;
-            }
-        }
-        output += line.trimEnd() + '\n';
-    }
-    return output.trimEnd();
+    const uncoloredStrings = items.map(i => i.name);
+    return this.formatColumns(stringsToDisplay, uncoloredStrings);
 }
+
 
 function formatLsLong(items, now) {
     const formatDate = (date) => {
@@ -211,7 +197,7 @@ export const FILESYSTEM_COMMANDS = {
 
             const output = long
                 ? formatLsLong.call(this, result, new Date())
-                : formatLsShort.call(this, result, info.terminalCols, info.inPipe)
+                : formatLsShort.call(this, result, info.inPipe)
 
             if (!info.multipleArgsMode) {
                 return output;

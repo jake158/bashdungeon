@@ -71,7 +71,6 @@ export class CommandExecutor extends EventEmitter {
                     flagMap,
                     {
                         multipleArgsMode: positionalArgs.length > 1,
-                        terminalCols: this.terminalCols,
                         inPipe: inPipe
                     }
                 );
@@ -149,7 +148,6 @@ export class CommandExecutor extends EventEmitter {
                             flagMap,
                             {
                                 multipleArgsMode: false,
-                                terminalCols: this.terminalCols,
                                 inPipe: inPipe
                             }
                         ),
@@ -230,5 +228,33 @@ export class CommandExecutor extends EventEmitter {
     setCommand(name, callback) {
         this.#commands[name] = this.#command(name, callback);
         this.commandDefinitions[name] = [callback, {}];
+    }
+
+    formatColumns(stringsToDisplay, uncoloredStrings = null) {
+        if (stringsToDisplay.length === 0 || this.terminalCols === null || this.terminalCols <= 0) {
+            return '';
+        }
+        const stringsForWidthCalc = uncoloredStrings || stringsToDisplay;
+
+        const maxItemWidth = stringsForWidthCalc.reduce((maxWidth, str) => Math.max(maxWidth, str.length), 0);
+        const cols = Math.max(Math.floor(this.terminalCols / (maxItemWidth + 1)), 1);
+        const rows = Math.ceil(stringsToDisplay.length / cols);
+
+        let output = '';
+        for (let row = 0; row < rows; row++) {
+            let line = '';
+
+            for (let col = 0; col < cols; col++) {
+                const index = col * rows + row;
+                if (index < stringsToDisplay.length) {
+                    const itemToDisplay = stringsToDisplay[index];
+                    const itemForWidth = stringsForWidthCalc[index];
+                    const paddedItem = itemToDisplay + ' '.repeat(maxItemWidth - itemForWidth.length + 1);
+                    line += paddedItem;
+                }
+            }
+            output += line.trimEnd() + '\n';
+        }
+        return output.trimEnd();
     }
 }
