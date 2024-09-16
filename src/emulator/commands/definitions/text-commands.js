@@ -53,13 +53,34 @@ export const TEXT_COMMANDS = {
     ],
 
     'grep': [
-        function (stdin, [file, pattern], flagMap, info) {
+        function grep(stdin, [file, pattern], flagMap, info) {
             let text = stdin;
             const options = {
                 ignoreCase: flagMap.has('-i'),
                 lineNumbers: flagMap.has('-n'),
+                recursive: flagMap.has('-r'),
             };
 
+            const recurse = (file) => {
+                try {
+                    if (this.fileSystem.isDirectory(file)) {
+                        const contents = this.fileSystem.ls(file);
+                        const prefix = file.endsWith('/') ? file : file + '/';
+                        return contents.map(i => grep.call(this, stdin, [prefix + i.name, pattern], flagMap, { multipleArgsMode: true })).join('');
+                    } else {
+                        return grep.call(this, stdin, [file, pattern], flagMap, { multipleArgsMode: true, baseCase: true });
+                    }
+                } catch (error) {
+                    // TODO: Bug: this does not get printed on a newline sometimes
+                    return 'grep: ' + error.message;
+                }
+            }
+            if (!file && options.recursive) {
+                return recurse('.');
+            }
+            if (file && file !== '-' && options.recursive && !info.baseCase) {
+                return recurse(file);
+            }
             if (file && file !== '-') {
                 text = this.fileSystem.getFileContent(file);
             }
@@ -87,6 +108,7 @@ export const TEXT_COMMANDS = {
             flags: {
                 '-i': 'regular', // Case insensitive search
                 '-n': 'regular', // Show line numbers
+                '-r': 'regular'  // Recursive
             },
             callForEachArg: true,
             destinationArgLocations: [0]

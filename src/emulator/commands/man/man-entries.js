@@ -157,7 +157,10 @@ recursive searches examine the working directory, and
 nonrecursive searches read standard input.`,
         "OPTIONS": {
             "-i": "Ignore case distinctions in patterns and input data (ignore case)",
-            "-n": "Prefix each line of output with the line number within its input file"
+            "-n": `Prefix each line of output with the line number within 
+its input file`,
+            "-r": `Read all files under each directory, recursively.  Note that if 
+no file operand is given, grep searches the working directory.`
         }
     }
 };

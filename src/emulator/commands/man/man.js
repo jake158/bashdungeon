@@ -43,7 +43,8 @@ export class Man {
         const { SUMMARY, SYNOPSIS, DESCRIPTION, OPTIONS } = this.#getEntryData(commandName);
 
         const optionsText = OPTIONS && Object.keys(OPTIONS).length > 0
-            ? Object.entries(OPTIONS).map(([flag, description]) => `${this.colorize(flag, 'bold')}:\n        ${description}`).join('\n    ')
+            ? Object.entries(OPTIONS)
+                .map(([flag, description]) => `${this.colorize(flag, 'bold')}:\n        ${description.split('\n').join('\n        ')}`).join('\n    ')
             : 'None implemented.';
 
         return `

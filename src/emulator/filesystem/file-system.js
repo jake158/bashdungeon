@@ -88,7 +88,7 @@ export class FileSystem {
             ? new File(item.name, item.content, { permissions: item.permissions, username: item.username, groupname: item.groupname })
             : new Dir(item.name, item.contents.map(copyItem), { permissions: item.permissions, username: item.username, groupname: item.groupname });
 
-        // This makes cp -r fail when it encounters any unreadable file. Unreadable files should be skipped when copying.
+        // TODO: This makes cp -r fail when it encounters any unreadable file. Unreadable files should be skipped when copying.
         const newItem = (operation === 'copy') ? copyItem(sourceItem) : sourceItem;
 
         newItem.name = destFileName;
@@ -210,7 +210,7 @@ export class FileSystem {
     );
 
     ls = this.#chainErrors(
-        (path, options) => {
+        (path, options = {}) => {
             const absolutePath = this.#evaluatePath(path);
             const item = this.#getItem(absolutePath);
             if (!item) { throw new Error('No such file or directory'); }
