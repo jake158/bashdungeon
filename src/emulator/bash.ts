@@ -1,6 +1,6 @@
+import { CommandExecutor } from './commands/command-executor';
 import { EventEmitter } from './event-emitter';
 import { FileSystem } from './filesystem/file-system';
-import { CommandExecutor } from './commands/command-executor';
 
 export type ColorizeFunction = (text: string, ...styles: string[]) => string;
 

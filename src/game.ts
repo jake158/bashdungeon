@@ -1,14 +1,16 @@
-import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { Terminal } from '@xterm/xterm';
+
 import { BashEmulator, type ColorizeFunction } from './emulator/bash';
 import {
-    colorize,
-    ascii,
     ansi,
+    ascii,
     closestLeftBoundary,
     closestRightBoundary,
-    deleteWordToLeft,
+    colorize,
     type ColorKey,
+    colors,
+    deleteWordToLeft,
 } from './utils';
 
 export class Game {
@@ -37,28 +39,7 @@ export class Game {
         this.fitAddon.fit();
 
         const colorizeWrapper: ColorizeFunction = (text: string, ...styles: string[]) => {
-            const validStyles = styles.filter(
-                (s): s is ColorKey =>
-                    s in
-                    {
-                        reset: 1,
-                        bold: 1,
-                        red: 1,
-                        green: 1,
-                        yellow: 1,
-                        blue: 1,
-                        magenta: 1,
-                        cyan: 1,
-                        white: 1,
-                        bgRed: 1,
-                        bgGreen: 1,
-                        bgYellow: 1,
-                        bgBlue: 1,
-                        bgMagenta: 1,
-                        bgCyan: 1,
-                        bgWhite: 1,
-                    }
-            );
+            const validStyles = styles.filter((s): s is ColorKey => s in colors);
             return colorize(text, ...validStyles);
         };
         this.bash = new BashEmulator(

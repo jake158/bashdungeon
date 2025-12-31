@@ -1,10 +1,10 @@
 import { EventEmitter } from '../event-emitter';
-import { getFlags } from './get-flags';
-import { FILESYSTEM_COMMANDS } from './definitions/filesystem-commands';
-import { TEXT_COMMANDS } from './definitions/text-commands';
-import { OTHER_COMMANDS } from './definitions/other-commands';
-import { Man } from './man/man';
 import type { FileSystem } from '../filesystem/file-system';
+import { FILESYSTEM_COMMANDS } from './definitions/filesystem-commands';
+import { OTHER_COMMANDS } from './definitions/other-commands';
+import { TEXT_COMMANDS } from './definitions/text-commands';
+import { getFlags } from './get-flags';
+import { Man } from './man/man';
 
 type ColorizeFunction = (text: string, ...styles: string[]) => string;
 type FlagType = 'regular' | 'argument';

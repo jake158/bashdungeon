@@ -1,5 +1,5 @@
-import { manEntries, type ManEntry } from './man-entries';
 import type { CommandDefinitions } from '../command-executor';
+import { manEntries, type ManEntry } from './man-entries';
 
 type ColorizeFunction = (text: string, ...styles: string[]) => string;
 

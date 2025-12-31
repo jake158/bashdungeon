@@ -1,6 +1,6 @@
-import { ROOT } from './levels';
-import { Dir, File, Item } from './items';
 import { applyUmask, parseChmodString } from './file-system-utils';
+import { Dir, File, Item } from './items';
+import { ROOT } from './levels';
 
 interface LsOptions {
     all?: boolean;

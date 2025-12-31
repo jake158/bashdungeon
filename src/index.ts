@@ -1,10 +1,10 @@
 import '@xterm/xterm/css/xterm.css';
-import './layout/style.css';
+
 import './assets/fonts/hack.css';
 import { Game } from './game';
+import './layout/style.css';
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // Wait for Hack font to load before initializing terminal
     try {
         await document.fonts.load('10px Hack');
     } catch (error) {

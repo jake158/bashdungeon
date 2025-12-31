@@ -6,8 +6,9 @@
 sed "s|$HOME|~|g" | \
 
 # Add newlines before file sizes after .js/.ts/.jsx/.tsx/.css files (formats Entrypoint section)
-# Matches: file extension + ANSI codes + space + size → extension + ANSI codes + newline + size
-sed 's/\(\.[jt]sx\?\|\.css\)\([^ ]*\) \([0-9.]\+ KiB\)/\1\2\n  \3/g' | \
+# Matches: file extension + ANSI codes + space + size → extension + ANSI codes + space + size + newline
+sed 's/\(\.[jt]sx\?\)\([^ ]*\) \([0-9.]\+ KiB\)/\1\2 \3\n  /g' | \
+sed 's/\(\.css\)\([^ ]*\) \([0-9.]\+ KiB\)/\1\2 \3\n  /g' | \
 
 # Add blank line after bundle report path
 sed 's/bundle-report\.html.*$/&\n/' | \

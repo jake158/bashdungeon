@@ -1,4 +1,4 @@
-import type { CommandExecutor, CommandDefinitions, CommandInfo } from '../command-executor';
+import type { CommandDefinitions, CommandExecutor, CommandInfo } from '../command-executor';
 
 export const TEXT_COMMANDS: CommandDefinitions = {
     echo: [

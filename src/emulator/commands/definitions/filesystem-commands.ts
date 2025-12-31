@@ -1,4 +1,4 @@
-import type { CommandExecutor, CommandDefinitions, CommandInfo } from '../command-executor';
+import type { CommandDefinitions, CommandExecutor, CommandInfo } from '../command-executor';
 
 interface LsItem {
     type: string;
