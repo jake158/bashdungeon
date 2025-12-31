@@ -1,5 +1,3 @@
-
-
 export const ansi = {
     backspace: '\u007F',
     altBackspace: '\x1b\x7f',
@@ -11,7 +9,7 @@ export const ansi = {
     deleteToLeft: '\x1b[D \x1b[D',
     deleteOnCursor: ' \b\x1b[C',
     deleteLine: '\x1b[2K',
-    moveToColumn: (col) => `\x1b[${col}G`,
+    moveToColumn: (col: number) => `\x1b[${col}G`,
 };
 
 const colors = {
@@ -31,34 +29,35 @@ const colors = {
     bgMagenta: '\x1b[45m',
     bgCyan: '\x1b[46m',
     bgWhite: '\x1b[47m',
-}
+} as const;
 
-export function colorize(text, ...colorArgs) {
-    const colorCodes = colorArgs.map(color => colors[color] || '').join('');
+export type ColorKey = keyof typeof colors;
+
+export function colorize(text: string, ...colorArgs: ColorKey[]): string {
+    const colorCodes = colorArgs.map((color) => colors[color] || '').join('');
     return `${colorCodes}${text}${colors.reset}`;
 }
 
-
-export function closestLeftBoundary(input, offset) {
+export function closestLeftBoundary(input: string, offset: number): number {
     const inputSlice = input.slice(0, offset);
     const words = inputSlice.match(/\b\w+\b/g) || [];
     return words.length > 0 ? inputSlice.lastIndexOf(words[words.length - 1]) : 0;
 }
 
-export function closestRightBoundary(input, offset) {
+export function closestRightBoundary(input: string, offset: number): number {
     const inputSlice = input.slice(offset);
     const words = inputSlice.match(/\b\w+\b/g) || [];
-    return words.length > 0 ? offset + inputSlice.indexOf(words[0]) + words[0].length : input.length;
+    const firstWord = words[0];
+    return firstWord ? offset + inputSlice.indexOf(firstWord) + firstWord.length : input.length;
 }
 
-export function deleteWordToLeft(input, cursorPos) {
+export function deleteWordToLeft(input: string, cursorPos: number): { newBuffer: string; newPos: number } {
     const boundaryPos = closestLeftBoundary(input, cursorPos);
     return {
         newBuffer: input.slice(0, boundaryPos) + input.slice(cursorPos),
-        newPos: boundaryPos
+        newPos: boundaryPos,
     };
 }
-
 
 export const ascii = {
     welcome: `

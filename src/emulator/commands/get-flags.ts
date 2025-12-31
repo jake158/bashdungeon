@@ -1,21 +1,23 @@
+type FlagType = 'regular' | 'argument';
 
+export const getFlags = (
+    args: string[],
+    flags: Record<string, FlagType>
+): { positionalArgs: string[]; flagMap: Map<string, string[]> } => {
+    const flagMap = new Map<string, string[]>();
+    const positionalArgs: string[] = [];
 
-export const getFlags = (args, flags) => {
-    const flagMap = new Map();
-    const positionalArgs = [];
-
-    const handleLongFlag = (arg, index) => {
-        let [flag, value] = arg.split('=');
+    const handleLongFlag = (arg: string, index: number): number => {
+        let [flag, value]: [string, string | undefined] = arg.split('=') as [string, string | undefined];
 
         if (!flags[flag]) {
             throw new Error(`unrecognized option ${flag}`);
         }
         if (flags[flag] === 'argument' && !value) {
-            value = args.length > index + 1 ? args[index + 1] : null;
+            value = args.length > index + 1 ? args[index + 1] : undefined;
             index++;
             if (!value) throw new Error(`option requires an argument -- '${flag}'`);
-        }
-        else if (flags[flag] === 'regular' && value) {
+        } else if (flags[flag] === 'regular' && value) {
             throw new Error(`option '${flag}' doesn't allow an argument`);
         }
 
@@ -23,27 +25,30 @@ export const getFlags = (args, flags) => {
             if (!flagMap.has(flag)) {
                 flagMap.set(flag, []);
             }
-            flagMap.get(flag).push(value);
+            const existingValue = flagMap.get(flag);
+            if (existingValue && value !== undefined) {
+                existingValue.push(value);
+            }
         } else {
-            flagMap.set(flag, true);
+            flagMap.set(flag, []);
         }
         return index;
     };
 
-    const handleShortFlag = (arg, index) => {
+    const handleShortFlag = (arg: string, index: number): number => {
         let remainder = arg;
 
         while (remainder) {
-            const flag = Object.keys(flags).find(f => remainder.startsWith(f));
+            const flag = Object.keys(flags).find((f) => remainder.startsWith(f));
             if (!flag) {
                 throw new Error(`unrecognized option -- '${remainder.slice(1, 2)}'`);
             }
             remainder = remainder.slice(flag.length);
 
             if (flags[flag] === 'argument') {
-                let optArg = remainder;
+                let optArg: string | undefined = remainder;
                 if (!remainder) {
-                    optArg = args.length > index + 1 ? args[index + 1] : null;
+                    optArg = args.length > index + 1 ? args[index + 1] : undefined;
                     index++;
                 }
                 if (!optArg) {
@@ -52,12 +57,15 @@ export const getFlags = (args, flags) => {
                 if (!flagMap.has(flag)) {
                     flagMap.set(flag, []);
                 }
-                flagMap.get(flag).push(optArg);
+                const existingValue = flagMap.get(flag);
+                if (existingValue) {
+                    existingValue.push(optArg);
+                }
                 break;
             } else {
-                remainder = remainder ? '-' + remainder : null;
+                remainder = remainder ? '-' + remainder : '';
                 flagMap.delete(flag);
-                flagMap.set(flag, true);
+                flagMap.set(flag, []);
             }
         }
         return index;

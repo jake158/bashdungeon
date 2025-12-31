@@ -1,16 +1,49 @@
+type ItemType = 'file' | 'directory';
+type PermissionAction = 'read' | 'write' | 'execute';
 
+interface ItemOptions {
+    permissions?: string;
+    immutable?: boolean;
+    username?: string;
+    groupname?: string;
+    lastModified?: Date;
+}
+
+export interface ItemJSON {
+    type: ItemType;
+    name: string;
+    options?: {
+        permissions?: string;
+        immutable?: boolean;
+        username?: string;
+        groupname?: string;
+        lastModified?: string;
+    };
+    content?: string;
+    contents?: ItemJSON[];
+}
 
 export class Item {
-    #type;
-    #name;
-    #permissions;
-    #immutable;
-    #parent;
-    #username;
-    #groupname;
-    #lastModified;
+    #type: ItemType;
+    #name: string;
+    #permissions: string;
+    #immutable: boolean;
+    #parent: Dir | null;
+    #username: string;
+    #groupname: string;
+    #lastModified: Date;
 
-    constructor(type, name, { permissions = '---------', immutable = false, username = 'user', groupname = 'group', lastModified = new Date() } = {}) {
+    constructor(
+        type: ItemType,
+        name: string,
+        {
+            permissions = '---------',
+            immutable = false,
+            username = 'user',
+            groupname = 'group',
+            lastModified = new Date(),
+        }: ItemOptions = {}
+    ) {
         this.#type = type;
         this.#name = name;
         this.#permissions = permissions;
@@ -19,65 +52,71 @@ export class Item {
         this.#username = username;
         this.#groupname = groupname;
         this.#lastModified = lastModified;
-        if (!(lastModified instanceof Date)) { throw new Error('lastModified must be an instance of Date'); }
+        if (!(lastModified instanceof Date)) {
+            throw new Error('lastModified must be an instance of Date');
+        }
     }
 
-    checkPermissions(action) {
-        const perms = {
+    checkPermissions(action: PermissionAction): void {
+        const perms: Record<PermissionAction, boolean> = {
             read: this.#permissions[1] === 'r',
             write: this.#permissions[2] === 'w',
-            execute: this.#permissions[3] === 'x'
+            execute: this.#permissions[3] === 'x',
         };
         if (!perms[action]) {
             throw new Error('Permission denied');
         }
     }
 
-    get type() {
+    get type(): ItemType {
         return this.#type;
     }
 
-    get parent() {
+    get parent(): Dir | null {
         return this.#parent;
     }
 
-    get name() {
+    get name(): string {
         return this.#name;
     }
 
-    get permissions() {
+    get permissions(): string {
         return this.#permissions;
     }
 
-    get immutable() {
+    get immutable(): boolean {
         return this.#immutable;
     }
 
-    get username() {
+    get username(): string {
         return this.#username;
     }
 
-    get groupname() {
+    get groupname(): string {
         return this.#groupname;
     }
 
-    get lastModified() {
+    get lastModified(): Date {
         return this.#lastModified;
     }
 
-    get fileSize() {
+    get fileSize(): number {
         return 0;
     }
 
-    updateLastModified() {
+    get links(): number {
+        return 0;
+    }
+
+    updateLastModified(): void {
         this.#lastModified = new Date();
     }
 
-    set parent(parent) {
+    set parent(parent: Dir | null) {
         this.#parent = parent;
     }
 
-    set name(name) {
+    set name(name: string) {
         if (this.#immutable) throw new Error(`Permission denied: ${this.name} is immutable`);
         if (this.#parent) {
             this.#parent.checkPermissions('write');
@@ -86,13 +125,13 @@ export class Item {
         this.updateLastModified();
     }
 
-    set permissions(permissions) {
+    set permissions(permissions: string) {
         if (this.#immutable) throw new Error(`Permission denied: ${this.name} is immutable`);
         this.#permissions = permissions;
         this.updateLastModified();
     }
 
-    toJSON() {
+    toJSON(): ItemJSON {
         return {
             type: this.#type,
             name: this.#name,
@@ -101,42 +140,54 @@ export class Item {
                 immutable: this.#immutable,
                 username: this.#username,
                 groupname: this.#groupname,
-                lastModified: this.#lastModified.toISOString()
-            }
+                lastModified: this.#lastModified.toISOString(),
+            } as ItemJSON['options'],
         };
     }
 
-    static fromJSON(json) {
-        if (json.options && json.options.lastModified) {
-            json.options.lastModified = new Date(json.options.lastModified);
-        }
+    static fromJSON(json: ItemJSON): Item {
+        const options = json.options
+            ? {
+                  ...json.options,
+                  lastModified: json.options.lastModified ? new Date(json.options.lastModified) : undefined,
+              }
+            : {};
         if (json.type === 'directory') {
-            const contents = (json.contents || []).map(item => Item.fromJSON(item));
-            return new Dir(json.name, contents, json.options || {});
+            const contents = (json.contents || []).map((item) => Item.fromJSON(item));
+            return new Dir(json.name, contents, options);
         } else if (json.type === 'file') {
-            return new File(json.name, json.content || '', json.options || {});
+            return new File(json.name, json.content || '', options);
         } else {
             throw new Error('Invalid JSON: Unknown item type');
         }
     }
 }
 
-
 export class Dir extends Item {
-    #contents;
+    #contents: Item[];
 
-    constructor(name, contents = [], { permissions = 'drwxrwxr-x', immutable = false, username = 'user', groupname = 'group', lastModified = new Date() } = {}) {
+    constructor(
+        name: string,
+        contents: Item[] = [],
+        {
+            permissions = 'drwxrwxr-x',
+            immutable = false,
+            username = 'user',
+            groupname = 'group',
+            lastModified = new Date(),
+        }: ItemOptions = {}
+    ) {
         super('directory', name, { permissions, immutable, username, groupname, lastModified });
         this.#contents = contents;
-        contents.forEach(item => item.parent = this);
+        contents.forEach((item) => (item.parent = this));
     }
 
-    get contents() {
+    get contents(): Item[] {
         this.checkPermissions('read');
         return this.#contents;
     }
 
-    get links() {
+    override get links(): number {
         let links = 2;
         for (const item of this.#contents) {
             if (item.type === 'directory') {
@@ -146,22 +197,22 @@ export class Dir extends Item {
         return links;
     }
 
-    get isEmpty() {
+    get isEmpty(): boolean {
         return this.#contents.length === 0;
     }
 
-    get fileSize() {
+    override get fileSize(): number {
         return this.#contents.reduce((totalSize, item) => totalSize + item.fileSize, 0);
     }
 
-    findItemByName(name) {
+    findItemByName(name: string): Item | undefined {
         this.checkPermissions('execute');
-        return this.#contents.find(item => item.name === name);
+        return this.#contents.find((item) => item.name === name);
     }
 
-    removeItemByName(name, force = false) {
+    removeItemByName(name: string, force: boolean = false): boolean {
         if (!force) this.checkPermissions('write');
-        const index = this.#contents.findIndex(item => item.name === name);
+        const index = this.#contents.findIndex((item) => item.name === name);
         if (index !== -1) {
             if (this.#contents[index].immutable) throw new Error(`Permission denied: ${name} is immutable`);
             this.#contents.splice(index, 1);
@@ -172,56 +223,66 @@ export class Dir extends Item {
         }
     }
 
-    addItem(item) {
+    addItem(item: Item): void {
         this.checkPermissions('write');
         this.#contents.push(item);
         item.parent = this;
         this.updateLastModified();
     }
 
-    toJSON() {
+    override toJSON(): ItemJSON {
         const json = super.toJSON();
-        json.contents = this.#contents.map(item => item.toJSON());
+        json.contents = this.#contents.map((item) => item.toJSON());
         return json;
     }
 }
 
 export class File extends Item {
-    #content;
+    #content: string;
 
-    constructor(name, content = '', { permissions = '-rw-rw-r--', immutable = false, username = 'user', groupname = 'group', lastModified = new Date() } = {}) {
+    constructor(
+        name: string,
+        content: string = '',
+        {
+            permissions = '-rw-rw-r--',
+            immutable = false,
+            username = 'user',
+            groupname = 'group',
+            lastModified = new Date(),
+        }: ItemOptions = {}
+    ) {
         super('file', name, { permissions, immutable, username, groupname, lastModified });
         this.#content = content;
     }
 
-    get content() {
+    get content(): string {
         this.checkPermissions('read');
         return this.#content;
     }
 
-    get links() {
+    override get links(): number {
         return 1;
     }
 
-    get fileSize() {
+    override get fileSize(): number {
         return this.#content.length;
     }
 
-    set content(content) {
+    set content(content: string) {
         if (this.immutable) throw new Error(`Permission denied: ${this.name} is immutable`);
         this.checkPermissions('write');
         this.#content = content;
         this.updateLastModified();
     }
 
-    appendContent(content) {
+    appendContent(content: string): void {
         if (this.immutable) throw new Error(`Permission denied: ${this.name} is immutable`);
         this.checkPermissions('write');
         this.#content += content;
         this.updateLastModified();
     }
 
-    toJSON() {
+    override toJSON(): ItemJSON {
         const json = super.toJSON();
         json.content = this.#content;
         return json;

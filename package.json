@@ -1,32 +1,68 @@
 {
-  "name": "bashdungeon",
-  "description": "A game for learning Bash (Bourne-Again SHell)",
-  "version": "1.0.0",
-  "dependencies": {
-    "@xterm/addon-fit": "^0.10.0",
-    "@xterm/xterm": "^5.5.0",
-    "modern-normalize": "^2.0.0"
-  },
-  "devDependencies": {
-    "css-loader": "^7.1.2",
-    "html-webpack-plugin": "^5.6.0",
-    "style-loader": "^4.0.0",
-    "webpack": "^5.92.1",
-    "webpack-cli": "^5.1.4",
-    "webpack-dev-server": "^5.0.4"
-  },
-  "scripts": {
-    "start": "webpack serve --mode development",
-    "build": "webpack --mode production"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/jake158/bashdungeon.git"
-  },
-  "author": "jake158",
-  "license": "GPL3",
-  "bugs": {
-    "url": "https://github.com/jake158/bashdungeon/issues"
-  },
-  "homepage": "https://github.com/jake158/bashdungeon#readme"
+    "name": "bashdungeon",
+    "description": "A game for learning Bash (Bourne-Again SHell)",
+    "version": "1.0.0",
+    "scripts": {
+        "start": "webpack serve --mode development",
+        "build": "webpack --mode production --color 2>&1 | ./scripts/format-build-output.sh",
+        "build:analyze": "ANALYZE=true webpack --mode production --color 2>&1 | ./scripts/format-build-output.sh",
+        "clean": "rm -rf dist node_modules/.cache",
+        "serve": "npm run build && serve dist -l 9000",
+        "lint": "eslint src --ext .ts",
+        "lint:fix": "eslint src --ext .ts --fix",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "prepare": "husky"
+    },
+    "lint-staged": {
+        "src/**/*.{js,jsx,ts,tsx}": [
+            "eslint --max-warnings 0",
+            "prettier --write --ignore-unknown"
+        ],
+        "*.{json,md,yml,yaml,css,html}": "prettier --write --ignore-unknown"
+    },
+    "sideEffects": false,
+    "dependencies": {
+        "@xterm/addon-fit": "^0.10.0",
+        "@xterm/xterm": "^5.5.0",
+        "modern-normalize": "^2.0.0"
+    },
+    "devDependencies": {
+        "@types/node": "^25.0.3",
+        "@types/xterm": "^2.0.3",
+        "@typescript-eslint/eslint-plugin": "^8.51.0",
+        "@typescript-eslint/parser": "^8.51.0",
+        "compression-webpack-plugin": "^11.1.0",
+        "css-loader": "^7.1.2",
+        "css-minimizer-webpack-plugin": "^7.0.4",
+        "esbuild-loader": "^4.4.2",
+        "eslint": "^9.39.2",
+        "eslint-config-prettier": "^10.1.8",
+        "eslint-plugin-prettier": "^5.5.4",
+        "eslint-webpack-plugin": "^5.0.2",
+        "html-webpack-plugin": "^5.6.0",
+        "husky": "^9.1.7",
+        "lint-staged": "^16.2.7",
+        "mini-css-extract-plugin": "^2.9.4",
+        "prettier": "^3.7.4",
+        "serve": "^14.2.5",
+        "style-loader": "^4.0.0",
+        "terser-webpack-plugin": "^5.3.16",
+        "ts-loader": "^9.5.4",
+        "typescript": "^5.9.3",
+        "webpack": "^5.92.1",
+        "webpack-bundle-analyzer": "^5.1.0",
+        "webpack-cli": "^5.1.4",
+        "webpack-dev-server": "^5.0.4"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/jake158/bashdungeon.git"
+    },
+    "author": "jake158",
+    "license": "GPL3",
+    "bugs": {
+        "url": "https://github.com/jake158/bashdungeon/issues"
+    },
+    "homepage": "https://github.com/jake158/bashdungeon#readme"
 }

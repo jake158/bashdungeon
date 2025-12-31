@@ -1,15 +1,21 @@
-import { EventEmitter } from "./event-emitter.js";
-import { FileSystem } from './filesystem/file-system.js';
-import { CommandExecutor } from './commands/command-executor.js';
+import { EventEmitter } from './event-emitter';
+import { FileSystem } from './filesystem/file-system';
+import { CommandExecutor } from './commands/command-executor';
 
+export type ColorizeFunction = (text: string, ...styles: string[]) => string;
 
 export class BashEmulator extends EventEmitter {
-    #fileSystem;
-    #commandExecutor;
-    #history;
-    #historyIndex;
+    #fileSystem: FileSystem;
+    #commandExecutor: CommandExecutor;
+    #history: string[];
+    #historyIndex: number;
+    colorize: ColorizeFunction;
 
-    constructor(clearTerminal = () => '', colorize = (text) => text, terminalCols = null) {
+    constructor(
+        clearTerminal: () => string = () => '',
+        colorize: ColorizeFunction = (text) => text,
+        terminalCols: number | null = null
+    ) {
         super();
         this.colorize = colorize;
         this.#fileSystem = new FileSystem();
@@ -18,19 +24,20 @@ export class BashEmulator extends EventEmitter {
         this.#historyIndex = 0;
 
         this.#commandExecutor.setCommand('clear', clearTerminal);
-        this.#commandExecutor.setCommand('history', () => this.#history.map((line, index) => ` ${index + 1}  ${line}`).join('\n'));
+        this.#commandExecutor.setCommand('history', () =>
+            this.#history.map((line, index) => ` ${index + 1}  ${line}`).join('\n')
+        );
 
-        this.#commandExecutor.on('command', (commandName, stdin, args) => this.emit('command', commandName, stdin, args));
+        this.#commandExecutor.on('command', (commandName: string, stdin: string, args: string[]) =>
+            this.emit('command', commandName, stdin, args)
+        );
     }
 
-    /**
-     * @param {number} newCols
-     */
-    set terminalCols(newCols) {
+    set terminalCols(newCols: number) {
         this.#commandExecutor.terminalCols = Math.round(newCols);
     }
 
-    #pushToHistory(command) {
+    #pushToHistory(command: string): void {
         this.#historyIndex = this.#history.length;
         if (command !== this.#history[this.#history.length - 1]) {
             this.#history.push(command);
@@ -38,19 +45,21 @@ export class BashEmulator extends EventEmitter {
         }
     }
 
-    #splitCommand(command) {
+    #splitCommand(command: string): { commands: string[]; operators: string[] } {
         const regex = /\|\||\||&&|&>|&|;|<>|<|2>>|2>|>>/g;
         return {
-            commands: command.split(regex).map(cmd => cmd.trim()),
-            operators: command.match(regex) || []
-        }
+            commands: command.split(regex).map((cmd) => cmd.trim()),
+            operators: command.match(regex) || [],
+        };
     }
 
-    async #handleCommandSubstitution(input) {
+    async #handleCommandSubstitution(
+        input: string
+    ): Promise<{ expandedInput: string; errorsDuringSubstitution: string[] }> {
         // TODO: This regex does not support nested command substitution
         // E.g. $(ls $(pwd)) => $(ls $(pwd)
         const commandSubsRegex = /\$\(([^)]+)\)|`([^`]+)`/g;
-        let errors = [];
+        let errors: string[] = [];
         let match;
 
         while ((match = commandSubsRegex.exec(input)) !== null) {
@@ -63,28 +72,34 @@ export class BashEmulator extends EventEmitter {
         return { expandedInput: input, errorsDuringSubstitution: errors };
     }
 
-    async #parseAndExecute(input, allInPipe = false) {
+    async #parseAndExecute(
+        input: string,
+        allInPipe: boolean = false
+    ): Promise<{ stderr: string[]; stdout: string[]; outputStream: string[] }> {
         const { expandedInput, errorsDuringSubstitution } = await this.#handleCommandSubstitution(input);
         const { commands, operators } = this.#splitCommand(expandedInput);
         operators.unshift(';');
 
         let result = { stdin: '', stdout: '', stderr: '' };
-        const stdout = [];
-        const stderr = errorsDuringSubstitution;
+        const stdout: string[] = [];
+        const stderr: string[] = errorsDuringSubstitution;
 
-        pipeline:
-        for (let i = 0; i < commands.length; i++) {
+        pipeline: for (let i = 0; i < commands.length; i++) {
             const inPipe = allInPipe || i !== commands.length - 1;
             switch (operators[i]) {
                 case ';':
                     result = await this.#commandExecutor.executeCommand(commands[i], '', inPipe);
                     break;
                 case '||':
-                    if (!result.stderr) { break pipeline; }
+                    if (!result.stderr) {
+                        break pipeline;
+                    }
                     result = await this.#commandExecutor.executeCommand(commands[i], '', inPipe);
                     break;
                 case '&&':
-                    if (result.stderr) { break pipeline; }
+                    if (result.stderr) {
+                        break pipeline;
+                    }
                     result = await this.#commandExecutor.executeCommand(commands[i], '', inPipe);
                     break;
                 case '|':
@@ -105,11 +120,11 @@ export class BashEmulator extends EventEmitter {
         return {
             stderr: stderr.filter(Boolean),
             stdout: stdout.filter(Boolean),
-            outputStream: [...stderr, ...stdout].filter(Boolean)
+            outputStream: [...stderr, ...stdout].filter(Boolean),
         };
     }
 
-    async execute(input) {
+    async execute(input: string): Promise<string> {
         if (!/\S/.test(input)) {
             return '';
         }
@@ -118,7 +133,7 @@ export class BashEmulator extends EventEmitter {
         return outputStream.join('\n');
     }
 
-    historyUp() {
+    historyUp(): string {
         if (this.#historyIndex > 0) {
             this.#historyIndex--;
             return this.#history[this.#historyIndex];
@@ -127,7 +142,7 @@ export class BashEmulator extends EventEmitter {
         }
     }
 
-    historyDown() {
+    historyDown(): string {
         if (this.#historyIndex < this.#history.length - 1) {
             this.#historyIndex++;
             return this.#history[this.#historyIndex];
@@ -136,7 +151,11 @@ export class BashEmulator extends EventEmitter {
         }
     }
 
-    getTabCompletions(input) {
+    getTabCompletions(input: string): {
+        completions: string[];
+        completedCommand: string;
+        formattedCompletions: string;
+    } {
         // TODO: Add completion control for different commands
         // E.g. man + tab should not give file completions
         const { commands } = this.#splitCommand(input);
@@ -144,8 +163,8 @@ export class BashEmulator extends EventEmitter {
         const commandArgs = this.#commandExecutor.splitIntoArgs(currentCommand);
 
         const endsWithSpace = input.endsWith(' ');
-        let argToComplete;
-        let completions;
+        let argToComplete: string;
+        let completions: string[];
         let completedCommand = input;
 
         if (commandArgs.length <= 1 && !(commandArgs.length === 1 && endsWithSpace)) {
@@ -153,7 +172,7 @@ export class BashEmulator extends EventEmitter {
             argToComplete = argToComplete.replace(/['"]+/g, '');
             completions = this.#commandExecutor.getCommandsStartingWith(argToComplete);
         } else {
-            argToComplete = endsWithSpace ? '' : commandArgs.pop();
+            argToComplete = endsWithSpace ? '' : commandArgs.pop() || '';
             argToComplete = argToComplete.replace(/['"]+/g, '');
             completions = this.#fileSystem.getFilesStartingWith(argToComplete);
         }
@@ -165,11 +184,11 @@ export class BashEmulator extends EventEmitter {
         return {
             completions,
             completedCommand,
-            formattedCompletions: this.#commandExecutor.formatColumns(completions)
+            formattedCompletions: this.#commandExecutor.formatColumns(completions),
         };
     }
 
-    getPrompt(colorized = true) {
+    getPrompt(colorized: boolean = true): string {
         const userAtHost = this.#fileSystem.user + '@dungeon';
         const displayDirectory = this.#fileSystem.currentDirectory.replace(this.#fileSystem.homeDirectory, '~');
         return colorized
