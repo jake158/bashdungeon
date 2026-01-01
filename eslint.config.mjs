@@ -24,7 +24,7 @@ export default [
             '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
             '@typescript-eslint/explicit-function-return-type': 'off',
             '@typescript-eslint/no-explicit-any': 'warn',
-            'no-console': ['warn', { allow: ['warn', 'error'] }],
+            'no-console': 'off',
             ...prettierConfig.rules,
         },
     },

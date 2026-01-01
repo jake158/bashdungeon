@@ -1,7 +1,8 @@
-import type { CommandDefinitions } from '../command-executor';
+import type { CommandSettings } from '../command';
 import { manEntries, type ManEntry } from './man-entries';
 
 type ColorizeFunction = (text: string, ...styles: string[]) => string;
+type CommandDefinitions = Record<string, [() => void, CommandSettings]>;
 
 export class Man {
     private definitions: CommandDefinitions;

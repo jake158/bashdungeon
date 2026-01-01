@@ -1,8 +1,7 @@
 import { EventEmitter } from '../event-emitter';
 import type { FileSystem } from '../filesystem/file-system';
-import { FILESYSTEM_COMMANDS } from './definitions/filesystem-commands';
-import { OTHER_COMMANDS } from './definitions/other-commands';
-import { TEXT_COMMANDS } from './definitions/text-commands';
+import { Command, type CommandContext, type CommandSettings } from './command';
+import { CommandRegistry } from './command-registry';
 import { getFlags } from './get-flags';
 import { Man } from './man/man';
 
@@ -12,29 +11,16 @@ type FlagType = 'regular' | 'argument';
 export type CommandResult = { stdin: string; stdout: string; stderr: string };
 type CommandFunction = (stdin: string, args: string[], inPipe: boolean) => CommandResult;
 export type CommandInfo = { multipleArgsMode: boolean; inPipe?: boolean; baseCase?: boolean };
-type CommandImplementation<TArgs = unknown> = (
-    stdin: string,
-    args: TArgs,
-    flagMap: Map<string, string[]>,
-    options: CommandInfo
-) => string;
-export type CommandSettings = {
-    flags?: Record<string, FlagType>;
-    callForEachArg?: boolean;
-    destinationArgLocations?: (string | number)[];
-    sortArgs?: ((a: string, b: string) => number) | null;
-};
-export type CommandDefinition<TArgs = unknown> = [CommandImplementation<TArgs>, CommandSettings?];
-export type CommandDefinitions = Record<string, CommandDefinition<unknown>>;
 
 export class CommandExecutor extends EventEmitter {
     #commands: Record<string, CommandFunction>;
+    #commandInstances: Map<string, Command>;
     fileSystem: FileSystem;
     colorize: ColorizeFunction;
     terminalCols: number | null;
     env: Record<string, string>;
-    commandDefinitions: CommandDefinitions;
     man: Man;
+    private registry: CommandRegistry;
 
     constructor(
         fileSystem: FileSystem,
@@ -52,14 +38,50 @@ export class CommandExecutor extends EventEmitter {
             USER: fileSystem.user,
             HOME: fileSystem.homeDirectory,
         };
-        this.commandDefinitions = {
-            ...FILESYSTEM_COMMANDS,
-            ...TEXT_COMMANDS,
-            ...OTHER_COMMANDS,
-        };
 
-        this.man = new Man(this.commandDefinitions, colorize);
-        this.#commands = this.#initializeCommands(this.commandDefinitions);
+        this.registry = new CommandRegistry();
+        this.man = new Man(this.#getCommandDefinitionsForMan(), colorize);
+        this.#commandInstances = this.#instantiateCommands();
+        this.#commands = this.#initializeCommands();
+    }
+
+    #getContext(): CommandContext {
+        return {
+            fileSystem: this.fileSystem,
+            colorize: this.colorize,
+            env: this.env,
+            terminalCols: this.terminalCols,
+            formatColumns: this.formatColumns.bind(this),
+            man: this.man,
+            commandNames: this.registry.getAllCommandNames(),
+        };
+    }
+
+    #instantiateCommands(): Map<string, Command> {
+        const instances = new Map<string, Command>();
+        const context = this.#getContext();
+
+        this.registry.getAllCommandNames().forEach((name) => {
+            const CommandClass = this.registry.getCommandClass(name);
+            if (CommandClass) {
+                instances.set(name, new CommandClass(context));
+            }
+        });
+
+        return instances;
+    }
+
+    #getCommandDefinitionsForMan(): Record<string, [() => void, CommandSettings]> {
+        const definitions: Record<string, [() => void, CommandSettings]> = {};
+
+        this.registry.getAllCommandNames().forEach((name) => {
+            const CommandClass = this.registry.getCommandClass(name);
+            if (CommandClass) {
+                definitions[name] = [() => {}, CommandClass.settings];
+            }
+        });
+
+        return definitions;
     }
 
     #popDestinationArg(
@@ -84,7 +106,7 @@ export class CommandExecutor extends EventEmitter {
 
     #executeMultipleArgs(
         name: string,
-        func: CommandImplementation<unknown>,
+        commandInstance: Command,
         stdin: string,
         inPipe: boolean,
         positionalArgs: (string | null)[],
@@ -108,7 +130,7 @@ export class CommandExecutor extends EventEmitter {
         let stderr = '';
         for (let arg of positionalArgs) {
             try {
-                stdout += func(stdin, destinationArgLocations ? [arg, dest] : arg, flagMap, {
+                stdout += commandInstance.execute(stdin, destinationArgLocations ? [arg, dest] : arg, flagMap, {
                     multipleArgsMode: positionalArgs.length > 1,
                     inPipe: inPipe,
                 });
@@ -156,7 +178,7 @@ export class CommandExecutor extends EventEmitter {
         };
     }
 
-    #command(name: string, func: CommandImplementation<unknown>, settings: CommandSettings = {}): CommandFunction {
+    #command(name: string, commandInstance: Command, settings: CommandSettings = {}): CommandFunction {
         const { flags = {}, callForEachArg = false } = settings;
 
         return (stdin: string, args: string[], inPipe: boolean): CommandResult => {
@@ -168,11 +190,19 @@ export class CommandExecutor extends EventEmitter {
                 const { positionalArgs, flagMap } = this.#parseArgs(args, flags);
 
                 if (callForEachArg) {
-                    return this.#executeMultipleArgs(name, func, stdin, inPipe, positionalArgs, flagMap, settings);
+                    return this.#executeMultipleArgs(
+                        name,
+                        commandInstance,
+                        stdin,
+                        inPipe,
+                        positionalArgs,
+                        flagMap,
+                        settings
+                    );
                 } else {
                     return {
                         stdin: '',
-                        stdout: func(stdin, positionalArgs, flagMap, {
+                        stdout: commandInstance.execute(stdin, positionalArgs, flagMap, {
                             multipleArgsMode: false,
                             inPipe: inPipe,
                         }),
@@ -188,15 +218,23 @@ export class CommandExecutor extends EventEmitter {
         };
     }
 
-    #initializeCommands(definitions: CommandDefinitions): Record<string, CommandFunction> {
+    #initializeCommands(): Record<string, CommandFunction> {
         const commands: Record<string, CommandFunction> = {};
-        for (const [name, definition] of Object.entries(definitions)) {
-            const [func, settings] = definition;
-            if (settings && settings.sortArgs) {
-                settings.sortArgs = settings.sortArgs.bind(this);
+
+        this.#commandInstances.forEach((instance, name) => {
+            const CommandClass = this.registry.getCommandClass(name);
+            if (!CommandClass) return;
+
+            let settings = { ...CommandClass.settings };
+
+            // Bind sortArgs function if present
+            if (settings.sortArgs === null && CommandClass.getSortFunction) {
+                settings.sortArgs = CommandClass.getSortFunction(this.#getContext());
             }
-            commands[name] = this.#command(name, func.bind(this), settings ?? {});
-        }
+
+            commands[name] = this.#command(name, instance, settings);
+        });
+
         return commands;
     }
 
@@ -216,7 +254,7 @@ export class CommandExecutor extends EventEmitter {
     }
 
     getCommandsStartingWith(string: string): string[] {
-        return Object.keys(this.commandDefinitions).filter((c) => c.startsWith(string));
+        return this.registry.getAllCommandNames().filter((c) => c.startsWith(string));
     }
 
     splitIntoArgs(string: string): string[] {
@@ -260,9 +298,15 @@ export class CommandExecutor extends EventEmitter {
         return commandFunc(stdin, args, inPipe);
     }
 
-    setCommand(name: string, callback: CommandImplementation<unknown>): void {
-        this.#commands[name] = this.#command(name, callback);
-        this.commandDefinitions[name] = [callback, {}];
+    setCommand(name: string, callback: (stdin: string, args: string[], inPipe: boolean) => string): void {
+        // Wrapper for dynamic commands (clear, history)
+        this.#commands[name] = (stdin: string, args: string[], inPipe: boolean): CommandResult => {
+            return {
+                stdin: '',
+                stdout: callback(stdin, args, inPipe),
+                stderr: '',
+            };
+        };
     }
 
     formatColumns(stringsToDisplay: string[], uncoloredStrings: string[] | null = null): string {
