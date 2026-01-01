@@ -66,9 +66,17 @@ export abstract class Command<TArgs = unknown> {
     // Abstract method each command must implement
     abstract execute(stdin: string, args: TArgs, flagMap: Map<string, string[]>, options: CommandInfo): string;
 
-    // Optional lifecycle hooks
-    beforeExecute?(stdin: string, args: TArgs, flagMap: Map<string, string[]>): void;
-    afterExecute?(result: string): string;
+    // Optional lifecycle hooks (middleware pattern)
+    // beforeExecute: can modify parameters before execution, or return a string to skip execution
+    beforeExecute?(
+        stdin: string,
+        args: TArgs,
+        flagMap: Map<string, string[]>,
+        options: CommandInfo
+    ): { stdin: string; args: TArgs; flagMap: Map<string, string[]> } | string;
+
+    // afterExecute: can modify the result after execution
+    afterExecute?(result: string, options: CommandInfo): string;
 
     // Helper for sortArgs that needs context binding
     static getSortFunction?(context: CommandContext): (a: string, b: string) => number;

@@ -104,6 +104,43 @@ export class CommandExecutor extends EventEmitter {
         return dest;
     }
 
+    #executeWithHooks(
+        commandInstance: Command,
+        stdin: string,
+        args: unknown,
+        flagMap: Map<string, string[]>,
+        options: CommandInfo
+    ): string {
+        let modifiedStdin = stdin;
+        let modifiedArgs = args;
+        let modifiedFlagMap = flagMap;
+
+        // Call beforeExecute hook if it exists
+        if (commandInstance.beforeExecute) {
+            const beforeResult = commandInstance.beforeExecute(stdin, args, flagMap, options);
+
+            // If beforeExecute returns a string, skip execution and return that
+            if (typeof beforeResult === 'string') {
+                return beforeResult;
+            }
+
+            // Otherwise, use the modified parameters
+            modifiedStdin = beforeResult.stdin;
+            modifiedArgs = beforeResult.args;
+            modifiedFlagMap = beforeResult.flagMap;
+        }
+
+        // Execute the command
+        let result = commandInstance.execute(modifiedStdin, modifiedArgs, modifiedFlagMap, options);
+
+        // Call afterExecute hook if it exists
+        if (commandInstance.afterExecute) {
+            result = commandInstance.afterExecute(result, options);
+        }
+
+        return result;
+    }
+
     #executeMultipleArgs(
         name: string,
         commandInstance: Command,
@@ -130,10 +167,16 @@ export class CommandExecutor extends EventEmitter {
         let stderr = '';
         for (let arg of positionalArgs) {
             try {
-                stdout += commandInstance.execute(stdin, destinationArgLocations ? [arg, dest] : arg, flagMap, {
-                    multipleArgsMode: positionalArgs.length > 1,
-                    inPipe: inPipe,
-                });
+                stdout += this.#executeWithHooks(
+                    commandInstance,
+                    stdin,
+                    destinationArgLocations ? [arg, dest] : arg,
+                    flagMap,
+                    {
+                        multipleArgsMode: positionalArgs.length > 1,
+                        inPipe: inPipe,
+                    }
+                );
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 stderr += `\n${name}: ${message}`;
@@ -199,16 +242,15 @@ export class CommandExecutor extends EventEmitter {
                         flagMap,
                         settings
                     );
-                } else {
-                    return {
-                        stdin: '',
-                        stdout: commandInstance.execute(stdin, positionalArgs, flagMap, {
-                            multipleArgsMode: false,
-                            inPipe: inPipe,
-                        }),
-                        stderr: '',
-                    };
                 }
+                return {
+                    stdin: '',
+                    stdout: this.#executeWithHooks(commandInstance, stdin, positionalArgs, flagMap, {
+                        multipleArgsMode: false,
+                        inPipe: inPipe,
+                    }),
+                    stderr: '',
+                };
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 return { stdin: '', stdout: '', stderr: `${name}: ${message}` };
