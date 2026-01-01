@@ -1,4 +1,4 @@
-type PermissionChar = 'r' | 'w' | 'x' | '-';
+import type { PermissionChar } from './types';
 
 function permsToOctal(perms: string): string {
     const permissionBits: Record<PermissionChar, number> = { r: 4, w: 2, x: 1, '-': 0 };

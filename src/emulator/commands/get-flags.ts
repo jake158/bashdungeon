@@ -1,4 +1,4 @@
-type FlagType = 'regular' | 'argument';
+import type { FlagType } from './command';
 
 export const getFlags = (
     args: string[],

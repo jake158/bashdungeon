@@ -1,16 +1,13 @@
+import type { ColorizeFunction } from '../bash';
 import { EventEmitter } from '../event-emitter';
 import type { FileSystem } from '../filesystem/file-system';
-import { Command, type CommandContext, type CommandSettings } from './command';
+import { Command, type CommandContext, type CommandInfo, type CommandSettings, type FlagType } from './command';
 import { CommandRegistry } from './command-registry';
 import { getFlags } from './get-flags';
 import { Man } from './man/man';
 
-type ColorizeFunction = (text: string, ...styles: string[]) => string;
-type FlagType = 'regular' | 'argument';
-
 export type CommandResult = { stdin: string; stdout: string; stderr: string };
 type CommandFunction = (stdin: string, args: string[], inPipe: boolean) => CommandResult;
-export type CommandInfo = { multipleArgsMode: boolean; inPipe?: boolean; baseCase?: boolean };
 
 export class CommandExecutor extends EventEmitter {
     #commands: Record<string, CommandFunction>;

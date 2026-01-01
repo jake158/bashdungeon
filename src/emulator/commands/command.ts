@@ -1,7 +1,7 @@
+import type { ColorizeFunction } from '../bash';
 import type { FileSystem } from '../filesystem/file-system';
 import type { Man } from './man/man';
 
-export type ColorizeFunction = (text: string, ...styles: string[]) => string;
 export type FlagType = 'regular' | 'argument';
 
 export interface CommandContext {

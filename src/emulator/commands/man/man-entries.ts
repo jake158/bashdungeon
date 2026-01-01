@@ -1,9 +1,4 @@
-export interface ManEntry {
-    SUMMARY: string;
-    SYNOPSIS: string;
-    DESCRIPTION: string;
-    OPTIONS: Record<string, string>;
-}
+import type { ManEntry } from './man';
 
 export const manEntries: Record<string, ManEntry> = {
     pwd: {

@@ -88,27 +88,27 @@ export class BashEmulator extends EventEmitter {
             const inPipe = allInPipe || i !== commands.length - 1;
             switch (operators[i]) {
                 case ';':
-                    result = await this.#commandExecutor.executeCommand(commands[i], '', inPipe);
+                    result = this.#commandExecutor.executeCommand(commands[i], '', inPipe);
                     break;
                 case '||':
                     if (!result.stderr) {
                         break pipeline;
                     }
-                    result = await this.#commandExecutor.executeCommand(commands[i], '', inPipe);
+                    result = this.#commandExecutor.executeCommand(commands[i], '', inPipe);
                     break;
                 case '&&':
                     if (result.stderr) {
                         break pipeline;
                     }
-                    result = await this.#commandExecutor.executeCommand(commands[i], '', inPipe);
+                    result = this.#commandExecutor.executeCommand(commands[i], '', inPipe);
                     break;
                 case '|':
                     stdout.pop();
-                    result = await this.#commandExecutor.executeCommand(commands[i], result.stdout, inPipe);
+                    result = this.#commandExecutor.executeCommand(commands[i], result.stdout, inPipe);
                     break;
                 case '2>':
                     stderr.pop();
-                    result = await this.#commandExecutor.executeCommand(commands[i], result.stderr, inPipe);
+                    result = this.#commandExecutor.executeCommand(commands[i], result.stderr, inPipe);
                     break;
                 default:
                     stderr.push(`${operators[i]}: operator not implemented`);

@@ -1,8 +1,15 @@
+import type { ColorizeFunction } from '../../bash';
 import type { CommandSettings } from '../command';
-import { manEntries, type ManEntry } from './man-entries';
+import { manEntries } from './man-entries';
 
-type ColorizeFunction = (text: string, ...styles: string[]) => string;
-type CommandDefinitions = Record<string, [() => void, CommandSettings]>;
+export interface ManEntry {
+    SUMMARY: string;
+    SYNOPSIS: string;
+    DESCRIPTION: string;
+    OPTIONS: Record<string, string>;
+}
+
+export type CommandDefinitions = Record<string, [() => void, CommandSettings]>;
 
 export class Man {
     private definitions: CommandDefinitions;

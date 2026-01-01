@@ -1,35 +1,7 @@
 import { applyUmask, parseChmodString } from './file-system-utils';
 import { Dir, File, Item } from './items';
 import { ROOT } from './levels';
-
-interface LsOptions {
-    all?: boolean;
-    dir?: boolean;
-}
-
-interface MkdirOptions {
-    parents?: boolean;
-    verbose?: boolean;
-}
-
-interface RmOptions {
-    force?: boolean;
-}
-
-interface TouchOptions {
-    noCreate?: boolean;
-}
-
-interface LsItem {
-    type: string;
-    permissions: string;
-    links: number;
-    username: string;
-    groupname: string;
-    size: number;
-    modified: Date;
-    name: string;
-}
+import type { LsItem, LsOptions, MkdirOptions, RmOptions, TouchOptions } from './types';
 
 export class FileSystem {
     #user: string;

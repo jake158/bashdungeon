@@ -1,27 +1,4 @@
-type ItemType = 'file' | 'directory';
-type PermissionAction = 'read' | 'write' | 'execute';
-
-interface ItemOptions {
-    permissions?: string;
-    immutable?: boolean;
-    username?: string;
-    groupname?: string;
-    lastModified?: Date;
-}
-
-export interface ItemJSON {
-    type: ItemType;
-    name: string;
-    options?: {
-        permissions?: string;
-        immutable?: boolean;
-        username?: string;
-        groupname?: string;
-        lastModified?: string;
-    };
-    content?: string;
-    contents?: ItemJSON[];
-}
+import type { ItemJSON, ItemOptions, ItemType, PermissionAction } from './types';
 
 export class Item {
     #type: ItemType;

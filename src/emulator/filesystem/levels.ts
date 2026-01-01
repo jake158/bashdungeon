@@ -1,4 +1,5 @@
-import { Item, type ItemJSON } from './items';
+import { Item } from './items';
+import type { ItemJSON } from './types';
 
 export const ROOT = Item.fromJSON({
     type: 'directory',

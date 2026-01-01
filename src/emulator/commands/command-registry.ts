@@ -1,5 +1,6 @@
-import type { Command, CommandContext, CommandSettings } from './command';
+import { Command, type CommandContext, type CommandSettings } from './command';
 
+// Type representing a command class constructor
 export type CommandClass = {
     new (context: CommandContext): Command;
     commandName: string;
